@@ -1,3 +1,4 @@
+import * as vscode from "vscode";
 import type { ContextAttachment } from "../ai/providers/types";
 import { SelectionContextProvider } from "./context-providers/selection-provider";
 import { FileContextProvider } from "./context-providers/file-provider";
@@ -27,63 +28,29 @@ export class ContextEngine {
   /**
    * Main entry point -- called on every user message.
    *
+   * Accepts an optional editor so the caller can pass the last active
+   * text editor (webview focus causes activeTextEditor to be undefined).
+   *
    * Collects:
    * 1. Active file info (path, language, line count) + cursor context
    * 2. Selected text (if any)
    *
    * Returns attachments within the token budget.
    */
-  gatherAutoContext(): ContextAttachment[] {
+  gatherAutoContext(editor?: vscode.TextEditor): ContextAttachment[] {
     const attachments: ContextAttachment[] = [];
 
-    const selection = this._selectionProvider.resolve();
+    const selection = this._selectionProvider.resolve(editor);
     if (selection) {
       attachments.push(selection);
     }
 
-    const fileContext = this._fileProvider.getActiveFileContext();
+    const fileContext = this._fileProvider.getActiveFileContext(editor);
     if (fileContext) {
       attachments.push(fileContext);
     }
 
     return this.truncateToFit(attachments, this._maxTokens);
-  }
-
-  /**
-   * Format context attachments into an XML-style block for injection
-   * into the system prompt.
-   *
-   * Returns an empty string if there are no attachments.
-   */
-  formatContextForPrompt(attachments: ContextAttachment[]): string {
-    if (attachments.length === 0) { return ""; }
-
-    const blocks: string[] = [];
-
-    const fileAttachment = attachments.find(
-      (a) => a.type === "file" && a.metadata?.filePath,
-    );
-    const selectionAttachment = attachments.find(
-      (a) => a.type === "selection",
-    );
-
-    if (fileAttachment) {
-      const path = fileAttachment.metadata?.filePath ?? "unknown";
-      const lang = fileAttachment.metadata?.language ?? "unknown";
-      blocks.push(
-        `<active_file path="${path}" language="${lang}">\n${fileAttachment.content}\n</active_file>`,
-      );
-    }
-
-    if (selectionAttachment) {
-      const range = selectionAttachment.metadata?.lineRange;
-      const rangeStr = range ? ` lines="${range.start}-${range.end}"` : "";
-      blocks.push(
-        `<selected_code${rangeStr}>\n${selectionAttachment.content}\n</selected_code>`,
-      );
-    }
-
-    return "\n\n--- IDE Context ---\n" + blocks.join("\n\n");
   }
 
   /**

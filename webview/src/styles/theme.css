@@ -630,3 +630,147 @@ body {
   border-color: color-mix(in srgb, #60a5fa 25%, transparent);
   color: #60a5fa;
 }
+
+/* ── Interrupted label ── */
+.chat-interrupted-label {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--codedrill-muted);
+  opacity: 0.8;
+}
+
+/* ── Generating / Thinking status ── */
+.chat-status-indicator {
+  /* wrapper; no extra styling needed */
+}
+
+.chat-status-text {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--codedrill-muted);
+}
+
+.chat-generating-label {
+  padding: 2px 12px 6px;
+  font-size: 11px;
+  color: var(--codedrill-muted);
+  animation: codedrill-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes codedrill-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ── Timer ── */
+
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-family: var(--codedrill-font-mono, monospace);
+  background: color-mix(in srgb, var(--codedrill-surface) 90%, transparent);
+  border: 1px solid var(--codedrill-border);
+  transition: border-color 0.3s, background 0.3s;
+}
+
+.timer--green {
+  border-color: #22c55e;
+}
+
+.timer--yellow {
+  border-color: #eab308;
+}
+
+.timer--red {
+  border-color: #ef4444;
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+.timer--expired {
+  background: color-mix(in srgb, #ef4444 15%, transparent);
+}
+
+.timer-display {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 60px;
+}
+
+.timer-time {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.timer--green .timer-time { color: #22c55e; }
+.timer--yellow .timer-time { color: #eab308; }
+.timer--red .timer-time { color: #ef4444; }
+
+.timer-paused-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--codedrill-muted);
+  opacity: 0.7;
+}
+
+.timer-progress-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--codedrill-border) 50%, transparent);
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.timer-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s linear, background-color 0.3s;
+}
+
+.timer--green .timer-progress-bar { background: #22c55e; }
+.timer--yellow .timer-progress-bar { background: #eab308; }
+.timer--red .timer-progress-bar { background: #ef4444; }
+
+.timer-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.timer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  background: color-mix(in srgb, var(--codedrill-muted) 20%, transparent);
+  color: var(--codedrill-fg);
+  transition: background 0.15s;
+}
+
+.timer-btn:hover {
+  background: color-mix(in srgb, var(--codedrill-muted) 40%, transparent);
+}
+
+.timer-btn--stop:hover {
+  background: color-mix(in srgb, #ef4444 30%, transparent);
+  color: #ef4444;
+}
+
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}

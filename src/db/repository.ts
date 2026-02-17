@@ -1,46 +1,424 @@
+import * as vscode from "vscode";
+import initSqlJs, { type Database } from "sql.js";
+import type { Problem, ReviewCard, Attempt, Session } from "./schema";
+
+const CODEDRILL_DIR = ".codedrill";
+const DB_FILENAME = "codedrill.db";
+
+export interface CategoryStat {
+  category: string;
+  total: number;
+  attempted: number;
+  solved: number;
+}
+
 /**
- * Data Access Layer
+ * Data Access Layer backed by sql.js (WASM SQLite).
  *
- * Provides typed database operations using sql.js (WASM SQLite).
- * All database interactions go through this module.
- *
- * Responsibilities:
- * - Initialize database and run migrations
- * - CRUD operations for all tables
- * - Query builders for common operations
- * - Export/import database for backup
+ * sql.js runs entirely in-memory; `persist()` writes the byte array
+ * to disk via the VS Code filesystem API.
  */
-
-// import initSqlJs, { Database } from "sql.js";
-
 export class Repository {
-  // TODO: initialize(storagePath: string): Promise<void>
-  // TODO: runMigrations(): Promise<void>
-  // TODO: close(): void
+  private _db: Database | null = null;
+  private _dbUri: vscode.Uri | null = null;
 
+  /**
+   * Initialize the database.
+   * Loads sql-wasm.wasm from the extension's dist/ folder,
+   * reads an existing DB from `.codedrill/codedrill.db` (or creates a new one),
+   * then runs the schema to ensure all tables exist.
+   */
+  async initialize(
+    extensionUri: vscode.Uri,
+    workspaceUri?: vscode.Uri,
+  ): Promise<void> {
+    const wasmPath = vscode.Uri.joinPath(extensionUri, "dist", "sql-wasm.wasm");
+    const wasmBinary = await vscode.workspace.fs.readFile(wasmPath);
+
+    const SQL = await initSqlJs({
+      wasmBinary: wasmBinary.buffer,
+    });
+
+    const root = workspaceUri ?? vscode.workspace.workspaceFolders?.[0]?.uri;
+    if (!root) {
+      this._db = new SQL.Database();
+      await this._runSchema(extensionUri);
+      return;
+    }
+
+    const dir = vscode.Uri.joinPath(root, CODEDRILL_DIR);
+    try { await vscode.workspace.fs.createDirectory(dir); } catch { /* exists */ }
+
+    this._dbUri = vscode.Uri.joinPath(dir, DB_FILENAME);
+
+    try {
+      const existing = await vscode.workspace.fs.readFile(this._dbUri);
+      this._db = new SQL.Database(new Uint8Array(existing));
+      console.log("[Repository] Loaded existing database");
+    } catch {
+      this._db = new SQL.Database();
+      console.log("[Repository] Created new database");
+    }
+
+    await this._runSchema(extensionUri);
+    await this.persist();
+  }
+
+  private async _runSchema(extensionUri: vscode.Uri): Promise<void> {
+    if (!this._db) { return; }
+    const schemaUri = vscode.Uri.joinPath(extensionUri, "src", "db", "schema.sql");
+    const bytes = await vscode.workspace.fs.readFile(schemaUri);
+    const sql = Buffer.from(bytes).toString("utf-8");
+    this._db.run(sql);
+  }
+
+  async persist(): Promise<void> {
+    if (!this._db || !this._dbUri) { return; }
+    const data = this._db.export();
+    await vscode.workspace.fs.writeFile(this._dbUri, data);
+  }
+
+  close(): void {
+    if (this._db) {
+      this._db.close();
+      this._db = null;
+    }
+  }
+
+  private get db(): Database {
+    if (!this._db) { throw new Error("Repository not initialized"); }
+    return this._db;
+  }
+
+  // ================================================================
   // Problems
-  // TODO: insertProblem(problem): Promise<number>
-  // TODO: getProblemBySlug(slug: string): Problem | null
-  // TODO: getProblemById(id: number): Problem | null
-  // TODO: getProblemsForList(listName: string): Problem[]
+  // ================================================================
 
+  async insertProblem(p: Omit<Problem, "id" | "fetchedAt">): Promise<number> {
+    this.db.run(
+      `INSERT OR IGNORE INTO problems
+        (slug, title, difficulty, category, tags, description, examples, constraints, test_cases, hints, solution_code, source_list, leetcode_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        p.slug, p.title, p.difficulty, p.category,
+        JSON.stringify(p.tags), p.description,
+        JSON.stringify(p.examples), p.constraints,
+        JSON.stringify(p.testCases), JSON.stringify(p.hints),
+        p.solutionCode, p.sourceList, p.leetcodeId,
+      ],
+    );
+    const result = this.db.exec("SELECT last_insert_rowid() as id");
+    const id = (result[0]?.values[0]?.[0] as number) ?? 0;
+    await this.persist();
+    return id;
+  }
+
+  async updateProblem(slug: string, fields: Partial<Omit<Problem, "id" | "slug">>): Promise<void> {
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    if (fields.description !== undefined) { sets.push("description = ?"); vals.push(fields.description); }
+    if (fields.examples !== undefined) { sets.push("examples = ?"); vals.push(JSON.stringify(fields.examples)); }
+    if (fields.constraints !== undefined) { sets.push("constraints = ?"); vals.push(fields.constraints); }
+    if (fields.testCases !== undefined) { sets.push("test_cases = ?"); vals.push(JSON.stringify(fields.testCases)); }
+    if (fields.hints !== undefined) { sets.push("hints = ?"); vals.push(JSON.stringify(fields.hints)); }
+    if (fields.solutionCode !== undefined) { sets.push("solution_code = ?"); vals.push(fields.solutionCode); }
+    if (fields.tags !== undefined) { sets.push("tags = ?"); vals.push(JSON.stringify(fields.tags)); }
+    if (fields.leetcodeId !== undefined) { sets.push("leetcode_id = ?"); vals.push(fields.leetcodeId); }
+    if (sets.length === 0) { return; }
+    vals.push(slug);
+    this.db.run(`UPDATE problems SET ${sets.join(", ")} WHERE slug = ?`, vals);
+    await this.persist();
+  }
+
+  getProblemBySlug(slug: string): Problem | null {
+    const rows = this.db.exec("SELECT * FROM problems WHERE slug = ? LIMIT 1", [slug]);
+    if (!rows[0] || rows[0].values.length === 0) { return null; }
+    return this._rowToProblem(rows[0].columns, rows[0].values[0]);
+  }
+
+  getProblemById(id: number): Problem | null {
+    const rows = this.db.exec("SELECT * FROM problems WHERE id = ? LIMIT 1", [id]);
+    if (!rows[0] || rows[0].values.length === 0) { return null; }
+    return this._rowToProblem(rows[0].columns, rows[0].values[0]);
+  }
+
+  getProblemsForList(listName: string): Problem[] {
+    const rows = this.db.exec("SELECT * FROM problems WHERE source_list = ?", [listName]);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToProblem(rows[0].columns, v));
+  }
+
+  getUnseenProblem(excludeCategories?: string[], difficulty?: string): Problem | null {
+    let sql = `
+      SELECT p.* FROM problems p
+      WHERE p.id NOT IN (SELECT DISTINCT problem_id FROM attempts)
+    `;
+    const params: unknown[] = [];
+    if (excludeCategories && excludeCategories.length > 0) {
+      sql += ` AND p.category NOT IN (${excludeCategories.map(() => "?").join(",")})`;
+      params.push(...excludeCategories);
+    }
+    if (difficulty) {
+      sql += ` AND p.difficulty = ?`;
+      params.push(difficulty);
+    }
+    sql += ` ORDER BY RANDOM() LIMIT 1`;
+    const rows = this.db.exec(sql, params);
+    if (!rows[0] || rows[0].values.length === 0) { return null; }
+    return this._rowToProblem(rows[0].columns, rows[0].values[0]);
+  }
+
+  getCategories(): string[] {
+    const rows = this.db.exec("SELECT DISTINCT category FROM problems ORDER BY category");
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => v[0] as string);
+  }
+
+  getProblemCount(): number {
+    const rows = this.db.exec("SELECT COUNT(*) FROM problems");
+    return (rows[0]?.values[0]?.[0] as number) ?? 0;
+  }
+
+  private _rowToProblem(cols: string[], vals: unknown[]): Problem {
+    const obj: Record<string, unknown> = {};
+    cols.forEach((c, i) => { obj[c] = vals[i]; });
+    return {
+      id: obj.id as number,
+      slug: obj.slug as string,
+      title: obj.title as string,
+      difficulty: obj.difficulty as Problem["difficulty"],
+      category: obj.category as string,
+      tags: JSON.parse((obj.tags as string) || "[]"),
+      description: (obj.description as string) || "",
+      examples: JSON.parse((obj.examples as string) || "[]"),
+      constraints: (obj.constraints as string) || "",
+      testCases: JSON.parse((obj.test_cases as string) || "[]"),
+      hints: JSON.parse((obj.hints as string) || "[]"),
+      solutionCode: (obj.solution_code as string) || null,
+      sourceList: (obj.source_list as string) || "",
+      leetcodeId: (obj.leetcode_id as number) || null,
+      fetchedAt: (obj.fetched_at as string) || "",
+    };
+  }
+
+  // ================================================================
   // Review Cards
-  // TODO: getOrCreateCard(problemId, cardType): ReviewCard
-  // TODO: updateCard(card: ReviewCard): void
-  // TODO: getDueCards(limit: number): ReviewCard[]
+  // ================================================================
 
+  async getOrCreateCard(problemId: number, cardType: "dsa" | "system_design"): Promise<ReviewCard> {
+    const rows = this.db.exec(
+      "SELECT * FROM review_cards WHERE problem_id = ? AND card_type = ? LIMIT 1",
+      [problemId, cardType],
+    );
+    if (rows[0] && rows[0].values.length > 0) {
+      return this._rowToCard(rows[0].columns, rows[0].values[0]);
+    }
+    this.db.run(
+      `INSERT INTO review_cards (problem_id, card_type, due) VALUES (?, ?, ?)`,
+      [problemId, cardType, new Date().toISOString()],
+    );
+    await this.persist();
+    return this.getOrCreateCard(problemId, cardType);
+  }
+
+  async updateCard(card: ReviewCard): Promise<void> {
+    this.db.run(
+      `UPDATE review_cards SET
+        stability = ?, difficulty = ?, due = ?, last_review = ?,
+        reps = ?, lapses = ?, state = ?, scheduled_days = ?, elapsed_days = ?
+       WHERE id = ?`,
+      [
+        card.stability, card.difficulty, card.due, card.lastReview,
+        card.reps, card.lapses, card.state,
+        card.scheduledDays, card.elapsedDays, card.id,
+      ],
+    );
+    await this.persist();
+  }
+
+  getCardById(id: number): ReviewCard | null {
+    const rows = this.db.exec("SELECT * FROM review_cards WHERE id = ? LIMIT 1", [id]);
+    if (!rows[0] || rows[0].values.length === 0) { return null; }
+    return this._rowToCard(rows[0].columns, rows[0].values[0]);
+  }
+
+  getDueCards(limit: number): ReviewCard[] {
+    const rows = this.db.exec(
+      "SELECT * FROM review_cards WHERE due <= datetime('now') ORDER BY due ASC LIMIT ?",
+      [limit],
+    );
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToCard(rows[0].columns, v));
+  }
+
+  private _rowToCard(cols: string[], vals: unknown[]): ReviewCard {
+    const obj: Record<string, unknown> = {};
+    cols.forEach((c, i) => { obj[c] = vals[i]; });
+    return {
+      id: obj.id as number,
+      problemId: obj.problem_id as number,
+      cardType: obj.card_type as ReviewCard["cardType"],
+      stability: (obj.stability as number) || 0,
+      difficulty: (obj.difficulty as number) || 0,
+      due: obj.due as string,
+      lastReview: (obj.last_review as string) || null,
+      reps: (obj.reps as number) || 0,
+      lapses: (obj.lapses as number) || 0,
+      state: (obj.state as ReviewCard["state"]) || "New",
+      scheduledDays: (obj.scheduled_days as number) || 0,
+      elapsedDays: (obj.elapsed_days as number) || 0,
+    };
+  }
+
+  // ================================================================
   // Attempts
-  // TODO: insertAttempt(attempt): Promise<number>
-  // TODO: getAttemptsForProblem(problemId: number): Attempt[]
-  // TODO: getAttemptCount(problemId: number): number
+  // ================================================================
 
+  async insertAttempt(a: Omit<Attempt, "id">): Promise<number> {
+    this.db.run(
+      `INSERT INTO attempts
+        (problem_id, card_id, started_at, finished_at, time_spent_ms, timer_limit_ms,
+         rating, was_mutation, mutation_desc, user_code, ai_hints_used, gave_up, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        a.problemId, a.cardId, a.startedAt, a.finishedAt, a.timeSpentMs, a.timerLimitMs,
+        a.rating, a.wasMutation ? 1 : 0, a.mutationDesc, a.userCode,
+        a.aiHintsUsed, a.gaveUp ? 1 : 0, a.notes,
+      ],
+    );
+    const result = this.db.exec("SELECT last_insert_rowid() as id");
+    const id = (result[0]?.values[0]?.[0] as number) ?? 0;
+    await this.persist();
+    return id;
+  }
+
+  getAttemptsForProblem(problemId: number): Attempt[] {
+    const rows = this.db.exec("SELECT * FROM attempts WHERE problem_id = ? ORDER BY started_at DESC", [problemId]);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToAttempt(rows[0].columns, v));
+  }
+
+  getAttemptCount(problemId: number): number {
+    const rows = this.db.exec("SELECT COUNT(*) FROM attempts WHERE problem_id = ?", [problemId]);
+    return (rows[0]?.values[0]?.[0] as number) ?? 0;
+  }
+
+  private _rowToAttempt(cols: string[], vals: unknown[]): Attempt {
+    const obj: Record<string, unknown> = {};
+    cols.forEach((c, i) => { obj[c] = vals[i]; });
+    return {
+      id: obj.id as number,
+      problemId: obj.problem_id as number,
+      cardId: obj.card_id as number,
+      startedAt: obj.started_at as string,
+      finishedAt: (obj.finished_at as string) || null,
+      timeSpentMs: (obj.time_spent_ms as number) || null,
+      timerLimitMs: (obj.timer_limit_ms as number) || null,
+      rating: (obj.rating as Attempt["rating"]) || null,
+      wasMutation: !!(obj.was_mutation),
+      mutationDesc: (obj.mutation_desc as string) || null,
+      userCode: (obj.user_code as string) || null,
+      aiHintsUsed: (obj.ai_hints_used as number) || 0,
+      gaveUp: !!(obj.gave_up),
+      notes: (obj.notes as string) || null,
+    };
+  }
+
+  // ================================================================
   // Sessions
-  // TODO: insertSession(session): Promise<number>
-  // TODO: updateSession(session): void
-  // TODO: getRecentSessions(limit: number): Session[]
+  // ================================================================
 
+  async insertSession(s: Omit<Session, "id">): Promise<number> {
+    this.db.run(
+      `INSERT INTO sessions (started_at, new_problem_id, review_problem_id, completed)
+       VALUES (?, ?, ?, ?)`,
+      [s.startedAt, s.newProblemId, s.reviewProblemId, s.completed ? 1 : 0],
+    );
+    const result = this.db.exec("SELECT last_insert_rowid() as id");
+    const id = (result[0]?.values[0]?.[0] as number) ?? 0;
+    await this.persist();
+    return id;
+  }
+
+  async updateSession(s: Session): Promise<void> {
+    this.db.run(
+      `UPDATE sessions SET new_problem_id = ?, review_problem_id = ?, completed = ? WHERE id = ?`,
+      [s.newProblemId, s.reviewProblemId, s.completed ? 1 : 0, s.id],
+    );
+    await this.persist();
+  }
+
+  getRecentSessions(limit: number): Session[] {
+    const rows = this.db.exec("SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?", [limit]);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToSession(rows[0].columns, v));
+  }
+
+  private _rowToSession(cols: string[], vals: unknown[]): Session {
+    const obj: Record<string, unknown> = {};
+    cols.forEach((c, i) => { obj[c] = vals[i]; });
+    return {
+      id: obj.id as number,
+      startedAt: obj.started_at as string,
+      newProblemId: (obj.new_problem_id as number) || null,
+      reviewProblemId: (obj.review_problem_id as number) || null,
+      completed: !!(obj.completed),
+    };
+  }
+
+  // ================================================================
   // Stats
-  // TODO: getTotalSolved(): number
-  // TODO: getStreakDays(): number
-  // TODO: getCategoryStats(): CategoryStat[]
+  // ================================================================
+
+  getTotalSolved(): number {
+    const rows = this.db.exec(
+      "SELECT COUNT(DISTINCT problem_id) FROM attempts WHERE rating IS NOT NULL AND rating >= 2",
+    );
+    return (rows[0]?.values[0]?.[0] as number) ?? 0;
+  }
+
+  getStreakDays(): number {
+    const rows = this.db.exec(`
+      SELECT DISTINCT date(started_at) as d FROM attempts
+      WHERE started_at IS NOT NULL
+      ORDER BY d DESC
+    `);
+    if (!rows[0]) { return 0; }
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const row of rows[0].values) {
+      const d = new Date(row[0] as string);
+      d.setHours(0, 0, 0, 0);
+      const diff = Math.round((today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff === streak) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  getCategoryStats(): CategoryStat[] {
+    const rows = this.db.exec(`
+      SELECT
+        p.category,
+        COUNT(DISTINCT p.id) as total,
+        COUNT(DISTINCT a.problem_id) as attempted,
+        COUNT(DISTINCT CASE WHEN a.rating >= 3 THEN a.problem_id END) as solved
+      FROM problems p
+      LEFT JOIN attempts a ON a.problem_id = p.id
+      GROUP BY p.category
+      ORDER BY p.category
+    `);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => ({
+      category: v[0] as string,
+      total: v[1] as number,
+      attempted: v[2] as number,
+      solved: v[3] as number,
+    }));
+  }
 }

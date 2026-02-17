@@ -18,8 +18,6 @@ import { InterviewerPersona } from "./interviewer";
 import type { PromptContext } from "./prompt-loader";
 import { TeacherPersona } from "./teacher";
 
-export type PersonaMode = "agent" | "teach" | "interview";
-
 export class PersonaRouter {
   private readonly agent: AgentPersona;
   private readonly interviewer: InterviewerPersona;
@@ -43,15 +41,4 @@ export class PersonaRouter {
     }
   }
 
-  getActivePersona(mode: string): PersonaMode {
-    switch (mode) {
-      case "teach":
-        return "teach";
-      case "interview":
-        return "interview";
-      case "agent":
-      default:
-        return "agent";
-    }
-  }
 }

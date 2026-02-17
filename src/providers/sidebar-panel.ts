@@ -5,7 +5,10 @@ import type { ChatMessage } from "../ai/providers/types";
 import type { PromptContext } from "../ai/personas/prompt-loader";
 import { PersonaRouter } from "../ai/personas/persona-router";
 import { ChatStorage, type ChatSession } from "../storage/chat-storage";
+import { ProfileManager } from "../storage/profile-manager";
 import { ContextEngine } from "../context/context-engine";
+import type { ProblemBank } from "../core/problem-bank";
+import type { ProblemGeneratorPersona } from "../ai/personas/problem-generator";
 
 /**
  * Sidebar Webview Provider
@@ -23,6 +26,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private _mode: string = "agent";
   private _conversationHistory: ChatMessage[] = [];
   private _activeChatId: string | null = null;
+  private _chatCreatedAt: number | null = null;
   private _chatStorage: ChatStorage;
 
   // AbortController for the current streaming request
@@ -30,16 +34,46 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private readonly _contextEngine: ContextEngine;
   private readonly _personaRouter: PersonaRouter;
+  private readonly _profileManager: ProfileManager;
+
+  /** Cached last active text editor so context survives webview focus. */
+  private _lastActiveEditor: vscode.TextEditor | undefined;
+
+  /** Active problem metadata (set after "Get Today's Problem" completes). */
+  private _activeProblem: {
+    slug: string;
+    title: string;
+    difficulty: string;
+    category: string;
+    filePath: string;
+  } | null = null;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _configManager: ConfigManager,
     private readonly _router: LLMRouter,
+    subscriptions: vscode.Disposable[],
+    private readonly _problemBank?: ProblemBank,
+    private readonly _problemGenerator?: ProblemGeneratorPersona,
   ) {
     const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
     this._chatStorage = new ChatStorage(workspaceUri);
     this._contextEngine = new ContextEngine();
     this._personaRouter = new PersonaRouter(this._extensionUri);
+    this._profileManager = new ProfileManager(workspaceUri, this._extensionUri);
+
+    // Seed with the currently active editor (if any).
+    this._lastActiveEditor = vscode.window.activeTextEditor;
+
+    // Track editor focus changes so we remember the last real editor
+    // even after the webview steals focus.
+    subscriptions.push(
+      vscode.window.onDidChangeActiveTextEditor((editor) => {
+        if (editor) {
+          this._lastActiveEditor = editor;
+        }
+      }),
+    );
   }
 
   public resolveWebviewView(
@@ -113,6 +147,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         await this._onDeleteChat(message.chatId as string);
         break;
 
+      case "startSession":
+        await this._onStartSession();
+        break;
+
       case "configureProviders":
         await this._onConfigureProviders();
         break;
@@ -161,8 +199,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     if (this._abortController) {
       this._abortController.abort();
       this._abortController = null;
+      this.postMessage({ type: "chatInterrupted" });
     }
-    this.postMessage({ type: "chatInterrupted" });
   }
 
   // ================================================================
@@ -206,8 +244,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const abortController = new AbortController();
     this._abortController = abortController;
 
-    // Gather IDE context (active file, selection, cursor surroundings)
-    const contextAttachments = this._contextEngine.gatherAutoContext();
+    // Gather IDE context (active file, selection, cursor surroundings).
+    // Pass the cached editor so context is preserved even when webview has focus.
+    const contextAttachments = this._contextEngine.gatherAutoContext(this._lastActiveEditor);
     const systemPrompt = await this._getSystemPrompt(contextAttachments);
 
     // Send context badges to the webview for display
@@ -260,6 +299,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
       // Auto-save after each exchange
       await this._autoSaveChat();
+
+      // Trigger profile update in the background every N messages
+      if (this._profileManager.shouldUpdateProfile(this._conversationHistory.length)) {
+        this._triggerProfileUpdate();
+      }
     } catch (err: unknown) {
       if (abortController.signal.aborted) {
         this.postMessage({ type: "chatInterrupted" });
@@ -285,6 +329,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
     this._conversationHistory = [];
     this._activeChatId = null;
+    this._chatCreatedAt = null;
   }
 
   private async _onListChats(): Promise<void> {
@@ -303,6 +348,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
 
     this._activeChatId = session.id;
+    this._chatCreatedAt = session.createdAt;
     this._mode = session.mode;
     this._conversationHistory = session.messages.map((m) => ({
       role: m.role as "user" | "assistant",
@@ -341,6 +387,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
     if (!this._activeChatId) {
       this._activeChatId = ChatStorage.newId();
+      this._chatCreatedAt = now;
       this.postMessage({ type: "chatCreated", chatId: this._activeChatId });
     }
 
@@ -354,9 +401,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       title,
       mode: this._mode,
       model: this._selectedModel,
-      createdAt: this._conversationHistory[0]
-        ? now
-        : now,
+      createdAt: this._chatCreatedAt ?? now,
       updatedAt: now,
       messages: this._conversationHistory.map((m) => ({
         role: m.role as "user" | "assistant",
@@ -373,26 +418,91 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   // ================================================================
+  // Profile update (background, fire-and-forget)
+  // ================================================================
+
+  private _triggerProfileUpdate(): void {
+    const recent = this._conversationHistory.slice(-20);
+    this._profileManager
+      .loadProfile()
+      .then((existing) =>
+        this._profileManager.generateProfile(
+          recent,
+          existing,
+          this._router,
+          this._selectedModel,
+        ),
+      )
+      .then((profile) => {
+        if (profile) {
+          return this._profileManager.saveProfile(profile);
+        }
+      })
+      .catch((err) => {
+        console.error("[SidebarProvider] Background profile update failed:", err);
+      });
+  }
+
+  // ================================================================
   // System prompts per mode
   // ================================================================
 
   private async _getSystemPrompt(contextAttachments: ReturnType<ContextEngine["gatherAutoContext"]>): Promise<string> {
-    const context = this._buildPromptContext(contextAttachments);
+    const context = await this._buildPromptContext(contextAttachments);
     return this._personaRouter.getPromptForMode(this._mode, context);
   }
 
-  private _buildPromptContext(
+  private async _buildPromptContext(
     contextAttachments: ReturnType<ContextEngine["gatherAutoContext"]>,
-  ): PromptContext {
+  ): Promise<PromptContext> {
     const fileAttachment = contextAttachments.find((a) => a.type === "file");
     const selectionAttachment = contextAttachments.find((a) => a.type === "selection");
 
+    const userProfile = await this._profileManager.loadProfile();
+
+    // If an active problem file is loaded, read its content for prompt context.
+    let problemStatement: string | undefined;
+    if (this._activeProblem?.filePath) {
+      try {
+        const problemUri = vscode.Uri.file(this._activeProblem.filePath);
+        const bytes = await vscode.workspace.fs.readFile(problemUri);
+        problemStatement = new TextDecoder("utf-8").decode(bytes);
+      } catch {
+        // Problem file might have been deleted; ignore.
+      }
+    }
+
     return {
+      userProfile: userProfile || undefined,
       filePath: fileAttachment?.metadata?.filePath,
       language: fileAttachment?.metadata?.language,
       fileContent: fileAttachment?.content,
       selection: selectionAttachment?.content,
+      problemStatement,
     };
+  }
+
+  // ================================================================
+  // startSession -- trigger "Get Today's Problem" from webview
+  // ================================================================
+
+  private async _onStartSession(): Promise<void> {
+    // Delegate to the command palette command which has the full flow.
+    await vscode.commands.executeCommand("codedrill.startSession");
+  }
+
+  /**
+   * Called externally (from extension.ts) when a problem is loaded.
+   * Stores the active problem reference for context injection.
+   */
+  public setActiveProblem(problem: {
+    slug: string;
+    title: string;
+    difficulty: string;
+    category: string;
+    filePath: string;
+  }): void {
+    this._activeProblem = problem;
   }
 
   // ================================================================

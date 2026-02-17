@@ -14,6 +14,10 @@ export interface PromptContext {
   hintLevel?: number;
   timeRemaining?: string;
   previousRatings?: string;
+  problemTitle?: string;
+  difficulty?: string;
+  category?: string;
+  preferredLanguage?: string;
 }
 
 const templateCache = new Map<string, string>();
@@ -29,7 +33,19 @@ const TEMPLATE_VARIABLES: Record<keyof PromptContext, string> = {
   hintLevel: "HINT_LEVEL",
   timeRemaining: "TIME_REMAINING",
   previousRatings: "PREVIOUS_RATINGS",
+  problemTitle: "PROBLEM_TITLE",
+  difficulty: "DIFFICULTY",
+  category: "CATEGORY",
+  preferredLanguage: "PREFERRED_LANGUAGE",
 };
+
+/**
+ * Clear the template cache. Useful during development when editing
+ * prompt files -- call via the `codedrill.reloadPrompts` command.
+ */
+export function clearTemplateCache(): void {
+  templateCache.clear();
+}
 
 /**
  * Read a markdown prompt template from src/ai/personas/prompts and cache it.
@@ -63,7 +79,7 @@ export function buildPrompt(template: string, context: PromptContext): string {
     if (value === undefined || value === null || String(value).trim() === "") {
       continue;
     }
-    output = replaceAll(output, `{{${variable}}}`, String(value));
+    output = output.replaceAll(`{{${variable}}}`, String(value));
   }
 
   // Remove XML-like blocks that still contain unresolved placeholders.
@@ -79,8 +95,4 @@ export function buildPrompt(template: string, context: PromptContext): string {
   output = output.replace(/\n{3,}/g, "\n\n").trim();
 
   return output;
-}
-
-function replaceAll(input: string, search: string, replacement: string): string {
-  return input.split(search).join(replacement);
 }

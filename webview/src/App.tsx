@@ -27,6 +27,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   isStreaming?: boolean;
+  interrupted?: boolean;
 }
 
 export interface ModelInfo {
@@ -192,7 +193,7 @@ export function App() {
             if (last && last.role === "assistant" && last.isStreaming) {
               return [
                 ...prev.slice(0, -1),
-                { ...last, isStreaming: false },
+                { ...last, isStreaming: false, interrupted: true },
               ];
             }
             return prev;

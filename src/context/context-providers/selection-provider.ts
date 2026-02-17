@@ -10,16 +10,17 @@ import type { ContextAttachment } from "../../ai/providers/types";
 export class SelectionContextProvider {
   /**
    * Resolve the current editor selection into a ContextAttachment.
-   * Returns null if there is no active editor or no selection.
+   * Accepts an optional editor to avoid relying on activeTextEditor
+   * (which may be undefined when the webview has focus).
    */
-  resolve(): ContextAttachment | null {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) { return null; }
+  resolve(editor?: vscode.TextEditor): ContextAttachment | null {
+    const target = editor ?? vscode.window.activeTextEditor;
+    if (!target) { return null; }
 
-    const selection = editor.selection;
+    const selection = target.selection;
     if (selection.isEmpty) { return null; }
 
-    const document = editor.document;
+    const document = target.document;
     const selectedText = document.getText(selection);
 
     if (!selectedText.trim()) { return null; }

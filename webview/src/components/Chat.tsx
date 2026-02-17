@@ -106,22 +106,38 @@ export function Chat({ messages, isLoading }: ChatProps) {
           <div className="chat-message-content">
             {renderStructuredContent(message.content)}
             {message.isStreaming && <span className="chat-cursor">▎</span>}
+            {message.interrupted && (
+              <span className="chat-interrupted-label">Generation stopped</span>
+            )}
           </div>
         </article>
       ))}
 
-      {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-        <article className="chat-message chat-message--assistant">
-          <div className="chat-message-meta">
-            <span className="chat-message-role">CodeDrill</span>
+      {isLoading && (() => {
+        const lastMsg = messages[messages.length - 1];
+        const isStreaming = lastMsg?.role === "assistant" && lastMsg.isStreaming;
+        const isThinking = !isStreaming;
+
+        return (
+          <div className="chat-status-indicator" aria-live="polite">
+            {isThinking ? (
+              <article className="chat-message chat-message--assistant">
+                <div className="chat-message-meta">
+                  <span className="chat-message-role">CodeDrill</span>
+                </div>
+                <div className="chat-typing" aria-label="CodeDrill is thinking">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span className="chat-status-text">Thinking…</span>
+                </div>
+              </article>
+            ) : (
+              <div className="chat-generating-label">Generating…</div>
+            )}
           </div>
-          <div className="chat-typing" aria-label="CodeDrill is typing">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-        </article>
-      )}
+        );
+      })()}
 
       <div ref={bottomRef} />
     </div>

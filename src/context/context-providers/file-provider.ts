@@ -51,17 +51,18 @@ export class FileContextProvider {
    * Get context from the active editor: file metadata + the lines
    * surrounding the cursor (15 above, 15 below = 30 total).
    *
-   * This is the default auto-context -- lightweight, not the full file.
+   * Accepts an optional editor to avoid relying on activeTextEditor
+   * (which may be undefined when the webview has focus).
    */
-  getActiveFileContext(): ContextAttachment | null {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) { return null; }
+  getActiveFileContext(editor?: vscode.TextEditor): ContextAttachment | null {
+    const target = editor ?? vscode.window.activeTextEditor;
+    if (!target) { return null; }
 
-    const document = editor.document;
+    const document = target.document;
     const relativePath = vscode.workspace.asRelativePath(document.uri, false);
     const language = document.languageId;
     const lineCount = document.lineCount;
-    const cursorLine = editor.selection.active.line;
+    const cursorLine = target.selection.active.line;
 
     const startLine = Math.max(0, cursorLine - CURSOR_CONTEXT_LINES);
     const endLine = Math.min(lineCount - 1, cursorLine + CURSOR_CONTEXT_LINES);

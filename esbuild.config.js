@@ -1,4 +1,5 @@
 const esbuild = require("esbuild");
+const fs = require("fs");
 const path = require("path");
 
 const isProduction = process.argv.includes("--production");
@@ -61,6 +62,18 @@ const webviewConfig = {
   },
 };
 
+function copySqlWasm() {
+  const src = path.join(__dirname, "node_modules", "sql.js", "dist", "sql-wasm.wasm");
+  const dest = path.join(__dirname, "dist", "sql-wasm.wasm");
+  if (fs.existsSync(src)) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(src, dest);
+    console.log("[esbuild] Copied sql-wasm.wasm to dist/");
+  } else {
+    console.warn("[esbuild] sql-wasm.wasm not found in node_modules/sql.js/dist/");
+  }
+}
+
 async function main() {
   const configs = isWebview ? [webviewConfig] : [extensionConfig, webviewConfig];
 
@@ -70,11 +83,13 @@ async function main() {
       const ctx = await esbuild.context(config);
       await ctx.watch();
     }
+    copySqlWasm();
     console.log("[watch] Watching for changes...");
   } else {
     for (const config of configs) {
       await esbuild.build(config);
     }
+    copySqlWasm();
     console.log("[esbuild] Build complete.");
   }
 }
