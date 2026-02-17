@@ -3,12 +3,15 @@ import type { ConfigManager } from "../utils/config";
 import type { LLMRouter } from "../ai/llm-router";
 import type { ChatMessage } from "../ai/providers/types";
 import type { PromptContext } from "../ai/personas/prompt-loader";
-import { PersonaRouter } from "../ai/personas/persona-router";
+import { PersonaRouter, type SessionState } from "../ai/personas/persona-router";
 import { ChatStorage, type ChatSession } from "../storage/chat-storage";
 import { ProfileManager } from "../storage/profile-manager";
 import { ContextEngine } from "../context/context-engine";
+import { Timer } from "../core/timer";
+import type { Repository } from "../db/repository";
 import type { ProblemBank } from "../core/problem-bank";
 import type { ProblemGeneratorPersona } from "../ai/personas/problem-generator";
+import type { SessionManager } from "../core/session-manager";
 
 /**
  * Sidebar Webview Provider
@@ -46,7 +49,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     difficulty: string;
     category: string;
     filePath: string;
+    problemId?: number;
+    sessionId?: number;
+    timerDurationMs?: number;
   } | null = null;
+
+  /** Whether the user gave up on the current problem (switches to teacher). */
+  private _gaveUp = false;
+
+  /** Countdown timer (lives in extension host, survives webview recreation). */
+  private readonly _timer = new Timer();
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -55,6 +67,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     subscriptions: vscode.Disposable[],
     private readonly _problemBank?: ProblemBank,
     private readonly _problemGenerator?: ProblemGeneratorPersona,
+    private readonly _sessionManager?: SessionManager,
+    private readonly _repository?: Repository,
   ) {
     const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
     this._chatStorage = new ChatStorage(workspaceUri);
@@ -72,6 +86,26 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         if (editor) {
           this._lastActiveEditor = editor;
         }
+      }),
+    );
+
+    // Timer events → webview messages
+    subscriptions.push(
+      this._timer.onTick((remainingMs, phase) => {
+        this.postMessage({
+          type: "timerUpdate",
+          remainingMs,
+          totalMs: this._timer.durationMs,
+          phase,
+          isRunning: this._timer.isRunning,
+          isPaused: this._timer.isPaused,
+        });
+      }),
+    );
+
+    subscriptions.push(
+      this._timer.onExpired(() => {
+        this.postMessage({ type: "timerExpired" });
       }),
     );
   }
@@ -151,8 +185,28 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         await this._onStartSession();
         break;
 
+      case "timerAction":
+        this._onTimerAction(message.action as string, message.durationMs as number | undefined);
+        break;
+
+      case "rateAttempt":
+        await this._onRateAttempt(message.rating as 1 | 2 | 3 | 4, message.gaveUp as boolean | undefined);
+        break;
+
       case "configureProviders":
         await this._onConfigureProviders();
+        break;
+
+      case "listProblems":
+        this._onListProblems(message.category as string | undefined);
+        break;
+
+      case "getCategories":
+        this._onGetCategories();
+        break;
+
+      case "openProblem":
+        await this._onOpenProblem(message.slug as string);
         break;
 
       default:
@@ -295,6 +349,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: "chatInterrupted" });
       } else {
         this.postMessage({ type: "chatDone" });
+      }
+
+      // Track hint usage: when the user asks the interviewer a question during an active session
+      if (this._mode === "interview" && this._sessionManager?.hasActiveSession) {
+        this._sessionManager.recordHint();
       }
 
       // Auto-save after each exchange
@@ -449,7 +508,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private async _getSystemPrompt(contextAttachments: ReturnType<ContextEngine["gatherAutoContext"]>): Promise<string> {
     const context = await this._buildPromptContext(contextAttachments);
-    return this._personaRouter.getPromptForMode(this._mode, context);
+
+    const sessionState: SessionState = {
+      isActive: this._sessionManager?.hasActiveSession ?? false,
+      timerRunning: this._timer.isRunning,
+      gaveUp: this._gaveUp,
+    };
+
+    return this._personaRouter.getPromptForMode(this._mode, context, sessionState);
   }
 
   private async _buildPromptContext(
@@ -472,6 +538,39 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       }
     }
 
+    // Session state for persona prompts
+    let attemptNumber: number | undefined;
+    let hintLevel: number | undefined;
+    let timeRemaining: string | undefined;
+    let previousRatings: string | undefined;
+
+    const session = this._sessionManager?.getCurrentSession();
+    if (session && this._activeProblem?.problemId) {
+      const problemId = this._activeProblem.problemId;
+      hintLevel = session.hintsUsed;
+
+      if (this._repository) {
+        attemptNumber = this._repository.getAttemptCount(problemId) + 1;
+
+        const attempts = this._repository.getAttemptsForProblem(problemId);
+        if (attempts.length > 0) {
+          const ratingLabels: Record<number, string> = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
+          previousRatings = attempts
+            .filter((a) => a.rating !== null)
+            .map((a) => ratingLabels[a.rating!] ?? String(a.rating))
+            .join(", ");
+        }
+      }
+
+      if (this._timer.isRunning) {
+        const ms = this._timer.getRemainingMs();
+        const totalSec = Math.max(0, Math.ceil(ms / 1000));
+        const min = Math.floor(totalSec / 60);
+        const sec = totalSec % 60;
+        timeRemaining = `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+      }
+    }
+
     return {
       userProfile: userProfile || undefined,
       filePath: fileAttachment?.metadata?.filePath,
@@ -479,6 +578,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       fileContent: fileAttachment?.content,
       selection: selectionAttachment?.content,
       problemStatement,
+      attemptNumber,
+      hintLevel,
+      timeRemaining,
+      previousRatings: previousRatings || undefined,
     };
   }
 
@@ -487,13 +590,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // ================================================================
 
   private async _onStartSession(): Promise<void> {
-    // Delegate to the command palette command which has the full flow.
     await vscode.commands.executeCommand("codedrill.startSession");
   }
 
   /**
    * Called externally (from extension.ts) when a problem is loaded.
-   * Stores the active problem reference for context injection.
+   * Stores the active problem reference and starts the timer.
    */
   public setActiveProblem(problem: {
     slug: string;
@@ -501,8 +603,185 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     difficulty: string;
     category: string;
     filePath: string;
+    problemId?: number;
+    sessionId?: number;
+    timerDurationMs?: number;
   }): void {
     this._activeProblem = problem;
+    this._gaveUp = false;
+
+    // Begin the attempt in the session manager
+    if (this._sessionManager) {
+      this._sessionManager.beginAttempt("new");
+    }
+
+    // Do NOT auto-start timer. Send the duration to the webview so the
+    // user can start it when they're ready.
+  }
+
+  // ================================================================
+  // Timer actions from webview
+  // ================================================================
+
+  private _onTimerAction(action: string, durationMs?: number): void {
+    switch (action) {
+      case "start":
+        if (durationMs && durationMs > 0) {
+          this._timer.start(durationMs);
+        }
+        break;
+      case "pause":
+        this._timer.pause();
+        break;
+      case "resume":
+        this._timer.resume();
+        break;
+      case "stop": {
+        const result = this._timer.stop();
+        this.postMessage({
+          type: "timerStopped",
+          elapsedMs: result.elapsedMs,
+          wasExpired: result.wasExpired,
+        });
+        break;
+      }
+    }
+  }
+
+  // ================================================================
+  // Rating -- record attempt + FSRS update
+  // ================================================================
+
+  private async _onRateAttempt(rating: 1 | 2 | 3 | 4, gaveUp?: boolean): Promise<void> {
+    if (!this._sessionManager) {
+      this.postMessage({ type: "chatError", message: "Session manager not available." });
+      return;
+    }
+
+    // If user gave up, set the flag so persona router switches to teacher
+    if (gaveUp) {
+      this._gaveUp = true;
+      this.postMessage({ type: "modeOverride", mode: "teach" });
+    }
+
+    // Stop timer and collect elapsed time
+    const timerResult = this._timer.isRunning
+      ? this._timer.stop()
+      : { elapsedMs: 0, wasExpired: false };
+
+    try {
+      const updatedCard = await this._sessionManager.completeAttempt(
+        rating,
+        timerResult.elapsedMs,
+        this._activeProblem?.timerDurationMs ?? 0,
+        undefined,
+        gaveUp ?? false,
+      );
+
+      const nextReview = updatedCard?.due
+        ? new Date(updatedCard.due).toLocaleDateString()
+        : "unknown";
+
+      this.postMessage({
+        type: "ratingRecorded",
+        rating,
+        nextReview,
+        cardState: updatedCard?.state ?? "New",
+      });
+
+      // End the session
+      await this._sessionManager.endSession();
+      this._activeProblem = null;
+      this._gaveUp = false;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[SidebarProvider] Rating error:", msg);
+      this.postMessage({ type: "chatError", message: `Failed to record rating: ${msg}` });
+    }
+  }
+
+  // ================================================================
+  // Problem browser
+  // ================================================================
+
+  private _onListProblems(category?: string): void {
+    if (!this._repository) { return; }
+
+    const problems = this._repository.listProblems(category);
+    this.postMessage({
+      type: "problemList",
+      problems: problems.map((p) => ({
+        id: p.id,
+        slug: p.slug,
+        title: p.title,
+        difficulty: p.difficulty,
+        category: p.category,
+        hasDescription: !!p.description,
+        attemptCount: this._repository!.getAttemptCount(p.id),
+      })),
+    });
+  }
+
+  private _onGetCategories(): void {
+    if (!this._repository) { return; }
+
+    const categories = this._repository.getCategories();
+    this.postMessage({ type: "categoryList", categories });
+  }
+
+  private async _onOpenProblem(slug: string): Promise<void> {
+    if (!this._problemBank) { return; }
+
+    const problem = await this._problemBank.getProblemBySlug(slug);
+    if (!problem) {
+      this.postMessage({ type: "chatError", message: `Problem "${slug}" not found.` });
+      return;
+    }
+
+    // If there's a description, write it to a file and open it
+    if (problem.description) {
+      const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (!workspaceUri) { return; }
+
+      const today = new Date();
+      const dateStr = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, "0"),
+        String(today.getDate()).padStart(2, "0"),
+      ].join("-");
+
+      const dir = vscode.Uri.joinPath(workspaceUri, ".codedrill", "problems", dateStr);
+      try { await vscode.workspace.fs.stat(dir); } catch { await vscode.workspace.fs.createDirectory(dir); }
+
+      const fileUri = vscode.Uri.joinPath(dir, `${slug}.md`);
+      await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(problem.description));
+
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
+
+      // Determine timer duration based on difficulty
+      const config = this._configManager.config;
+      const prefs = config.preferences ?? {};
+      const timerMins = problem.difficulty === "Easy"
+        ? (typeof prefs.timerEasy === "number" ? prefs.timerEasy : 20)
+        : problem.difficulty === "Medium"
+          ? (typeof prefs.timerMedium === "number" ? prefs.timerMedium : 35)
+          : (typeof prefs.timerHard === "number" ? prefs.timerHard : 50);
+
+      const problemMeta = {
+        slug: problem.slug,
+        title: problem.title,
+        difficulty: problem.difficulty,
+        category: problem.category,
+        filePath: fileUri.fsPath,
+        problemId: problem.id,
+        timerDurationMs: timerMins * 60 * 1000,
+      };
+      this.setActiveProblem(problemMeta);
+      this.postMessage({ type: "problemLoaded", problem: problemMeta });
+    } else {
+      this.postMessage({ type: "chatError", message: `No description available for "${slug}". Run "Start Session" to generate one via LLM.` });
+    }
   }
 
   // ================================================================

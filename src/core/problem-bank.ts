@@ -4,7 +4,11 @@ import type { Problem } from "../db/schema";
 import type { LeetCodeClient } from "../leetcode/client";
 import { ProblemParser } from "../leetcode/parser";
 
-interface ListEntry {
+/**
+ * Shape of a single problem entry in the bundled JSON lists.
+ * Kept as a named export so the ProblemGenerator can reference it.
+ */
+export interface ProblemEntry {
   slug: string;
   title: string;
   difficulty: "Easy" | "Medium" | "Hard";
@@ -15,7 +19,7 @@ interface BundledList {
   name: string;
   description: string;
   source: string;
-  problems: ListEntry[];
+  problems: ProblemEntry[];
 }
 
 /**

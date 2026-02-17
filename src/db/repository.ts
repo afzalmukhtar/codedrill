@@ -36,7 +36,7 @@ export class Repository {
     const wasmBinary = await vscode.workspace.fs.readFile(wasmPath);
 
     const SQL = await initSqlJs({
-      wasmBinary: wasmBinary.buffer,
+      wasmBinary: wasmBinary.buffer as ArrayBuffer,
     });
 
     const root = workspaceUri ?? vscode.workspace.workspaceFolders?.[0]?.uri;
@@ -177,6 +177,23 @@ export class Repository {
   getProblemCount(): number {
     const rows = this.db.exec("SELECT COUNT(*) FROM problems");
     return (rows[0]?.values[0]?.[0] as number) ?? 0;
+  }
+
+  /**
+   * List all problems, optionally filtered by category.
+   * Returns lightweight rows sorted by category then title.
+   */
+  listProblems(category?: string): Problem[] {
+    let sql = "SELECT * FROM problems";
+    const params: unknown[] = [];
+    if (category) {
+      sql += " WHERE category = ?";
+      params.push(category);
+    }
+    sql += " ORDER BY category, title";
+    const rows = this.db.exec(sql, params);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToProblem(rows[0].columns, v));
   }
 
   private _rowToProblem(cols: string[], vals: unknown[]): Problem {

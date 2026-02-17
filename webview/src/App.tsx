@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Chat } from "./components/Chat";
 import { ChatInput } from "./components/ChatInput";
+import { Timer } from "./components/Timer";
+import { RatingPanel } from "./components/RatingPanel";
+import { SessionLoader, type SessionProgress } from "./components/SessionLoader";
+import { ProblemBrowser } from "./components/ProblemBrowser";
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -97,7 +101,25 @@ export function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatSummary[]>([]);
   const [contextBadges, setContextBadges] = useState<ContextBadge[]>([]);
+  const [showRating, setShowRating] = useState(false);
+  const [showProblems, setShowProblems] = useState(false);
+  const [ratingConfirmation, setRatingConfirmation] = useState<string | null>(null);
+  const [activeProblem, setActiveProblem] = useState<{
+    title: string;
+    difficulty: string;
+    category: string;
+    timerDurationMs?: number;
+  } | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionProgress, setSessionProgress] = useState<SessionProgress | null>(null);
+  const [sessionStreamContent, setSessionStreamContent] = useState("");
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const streamBufferRef = useRef<string>("");
+  const sessionStreamRef = useRef<string>("");
+  const activeProblemRef = useRef(activeProblem);
+
+  // Keep ref in sync with state (for use in event handler closures)
+  useEffect(() => { activeProblemRef.current = activeProblem; }, [activeProblem]);
 
   // Persist state whenever key values change
   useEffect(() => {
@@ -236,6 +258,61 @@ export function App() {
           setContextBadges((message.badges as ContextBadge[]) ?? []);
           break;
 
+        case "sessionProgress": {
+          const sp = message as { step: string; detail: string; problemPreview?: SessionProgress["problemPreview"] };
+          setSessionLoading(true);
+          setSessionError(null);
+          setSessionProgress({ step: sp.step, detail: sp.detail, problemPreview: sp.problemPreview });
+          if (sp.step === "generating") {
+            sessionStreamRef.current = "";
+            setSessionStreamContent("");
+          }
+          break;
+        }
+
+        case "sessionGenerationChunk": {
+          const chunk = message.content as string;
+          sessionStreamRef.current += chunk;
+          setSessionStreamContent(sessionStreamRef.current);
+          break;
+        }
+
+        case "sessionError": {
+          setSessionError(message.message as string);
+          break;
+        }
+
+        case "problemLoaded": {
+          const prob = message.problem as { title: string; difficulty: string; category: string; timerDurationMs?: number };
+          setActiveProblem(prob);
+          setShowRating(false);
+          setRatingConfirmation(null);
+          setSessionLoading(false);
+          setSessionProgress(null);
+          setSessionStreamContent("");
+          setSessionError(null);
+          sessionStreamRef.current = "";
+          break;
+        }
+
+        case "timerExpired":
+          setShowRating(true);
+          break;
+
+        case "timerStopped":
+          if (activeProblemRef.current) {
+            setShowRating(true);
+          }
+          break;
+
+        case "ratingRecorded": {
+          const rc = message as { nextReview: string; cardState: string };
+          setRatingConfirmation(`Next review: ${rc.nextReview}`);
+          setShowRating(false);
+          setActiveProblem(null);
+          break;
+        }
+
         default:
           break;
       }
@@ -290,6 +367,7 @@ export function App() {
   const handleShowHistory = useCallback(() => {
     vscodeApi.postMessage({ type: "listChats" });
     setShowHistory((prev) => !prev);
+    setShowProblems(false);
   }, []);
 
   const handleLoadChat = useCallback((chatId: string) => {
@@ -304,6 +382,23 @@ export function App() {
     }
   }, [activeChatId, handleNewChat]);
 
+  const handleStartSession = useCallback(() => {
+    setSessionLoading(true);
+    setSessionError(null);
+    setSessionProgress(null);
+    setSessionStreamContent("");
+    sessionStreamRef.current = "";
+    vscodeApi.postMessage({ type: "startSession" });
+  }, []);
+
+  const handleCancelSession = useCallback(() => {
+    setSessionLoading(false);
+    setSessionProgress(null);
+    setSessionStreamContent("");
+    setSessionError(null);
+    sessionStreamRef.current = "";
+  }, []);
+
   return (
     <VscodeContext.Provider value={{ postMessage: vscodeApi.postMessage }}>
       <div className="sidebar-container">
@@ -313,6 +408,14 @@ export function App() {
             <span className="sidebar-subtitle">{MODE_LABELS[mode]}</span>
           </div>
           <div className="sidebar-actions" aria-label="Sidebar actions">
+            <button
+              type="button"
+              className={`sidebar-action${showProblems ? " sidebar-action--active" : ""}`}
+              title="Browse problems"
+              onClick={() => { setShowProblems((p) => !p); setShowHistory(false); }}
+            >
+              ☰
+            </button>
             <button
               type="button"
               className={`sidebar-action${showHistory ? " sidebar-action--active" : ""}`}
@@ -332,7 +435,34 @@ export function App() {
           </div>
         </header>
 
-        {showHistory ? (
+        <Timer timerDurationMs={activeProblem?.timerDurationMs} />
+
+        {showRating && (
+          <RatingPanel
+            onRated={() => setShowRating(false)}
+            gaveUp={false}
+          />
+        )}
+
+        {ratingConfirmation && (
+          <div className="rating-confirmation">
+            Rating recorded. <strong>{ratingConfirmation}</strong>
+          </div>
+        )}
+
+        {showProblems ? (
+          <ProblemBrowser onClose={() => setShowProblems(false)} />
+        ) : sessionLoading ? (
+          <div className="chat-container">
+            <SessionLoader
+              progress={sessionProgress}
+              streamedContent={sessionStreamContent}
+              error={sessionError}
+              onRetry={handleStartSession}
+              onCancel={handleCancelSession}
+            />
+          </div>
+        ) : showHistory ? (
           <div className="chat-history">
             <div className="chat-history-header">
               <span className="chat-history-title">Chat History</span>
@@ -369,6 +499,21 @@ export function App() {
                 ))}
               </div>
             )}
+          </div>
+        ) : messages.length === 0 && !activeProblem ? (
+          <div className="chat-container chat-container--empty">
+            <div className="chat-welcome">
+              <div className="chat-welcome-glyph">&#x25CE;</div>
+              <h3>Welcome to CodeDrill</h3>
+              <p>Ask a question to get started with your interview practice.</p>
+              <button
+                type="button"
+                className="session-start-btn"
+                onClick={handleStartSession}
+              >
+                Start Practice Session
+              </button>
+            </div>
           </div>
         ) : (
           <Chat messages={messages} isLoading={isLoading} />

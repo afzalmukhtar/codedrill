@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { PromptContext } from "./prompt-loader";
 import { buildPrompt, loadPromptTemplate } from "./prompt-loader";
 import type { LLMRouter } from "../llm-router";
-import type { ProblemEntry } from "../../core/problem-bank";
+import type { Problem } from "../../db/schema";
 
 /**
  * Problem Generator Persona
@@ -28,33 +28,35 @@ export class ProblemGeneratorPersona {
    * Sends the problem-generator prompt to the LLM and collects
    * the complete streamed response into a single string.
    *
-   * @param entry     Problem entry from ProblemBank (slug, title, difficulty, category).
+   * @param problem   Problem from DB or ProblemBank (slug, title, difficulty, category).
    * @param language  Preferred programming language for starter code.
    * @param router    Initialised LLM router.
    * @param model     Model ID to use for generation.
    * @param signal    Optional AbortSignal for cancellation.
+   * @param onChunk   Optional callback invoked with each streamed text chunk.
    * @returns The generated Markdown content, or null on failure.
    */
   async generateProblem(
-    entry: ProblemEntry,
+    problem: Pick<Problem, "title" | "difficulty" | "category">,
     language: string,
     router: LLMRouter,
     model: string,
     signal?: AbortSignal,
+    onChunk?: (chunk: string) => void,
   ): Promise<string | null> {
     const promptContext: PromptContext = {
-      problemTitle: entry.title,
-      difficulty: entry.difficulty,
-      category: entry.category,
+      problemTitle: problem.title,
+      difficulty: problem.difficulty,
+      category: problem.category,
       preferredLanguage: language,
     };
 
     const systemPrompt = await this.buildSystemPrompt(promptContext);
 
     const userMessage = [
-      `Generate the coding problem "${entry.title}".`,
-      `Difficulty: ${entry.difficulty}`,
-      `Category: ${entry.category}`,
+      `Generate the coding problem "${problem.title}".`,
+      `Difficulty: ${problem.difficulty}`,
+      `Category: ${problem.category}`,
       `Preferred language for starter code: ${language}`,
     ].join("\n");
 
@@ -73,6 +75,7 @@ export class ProblemGeneratorPersona {
 
       if (chunk.type === "content" && chunk.content) {
         chunks.push(chunk.content);
+        onChunk?.(chunk.content);
       } else if (chunk.type === "error") {
         console.error("[ProblemGenerator] LLM error:", chunk.error);
         return null;

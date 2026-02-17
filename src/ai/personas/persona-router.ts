@@ -2,14 +2,12 @@
  * Persona Router
  *
  * Routes user messages to the appropriate AI persona based on
- * the current session state (timer active, gave up, etc.).
+ * the current mode AND the live session state.
  *
- * Routing Rules:
- * - Timer running + user asks for hint -> Interviewer
- * - Timer expired + user still trying -> Interviewer (escalated)
- * - User gives up -> Teacher
- * - User explicitly requests explanation -> Teacher
- * - Between sessions -> Teacher (for review/discussion)
+ * Auto-switching rules (override user-selected mode):
+ * - Timer running + active session -> Interviewer
+ * - User gave up during active session -> Teacher
+ * - No active session -> use selected mode
  */
 
 import * as vscode from "vscode";
@@ -17,6 +15,12 @@ import { AgentPersona } from "./agent";
 import { InterviewerPersona } from "./interviewer";
 import type { PromptContext } from "./prompt-loader";
 import { TeacherPersona } from "./teacher";
+
+export interface SessionState {
+  isActive: boolean;
+  timerRunning: boolean;
+  gaveUp: boolean;
+}
 
 export class PersonaRouter {
   private readonly agent: AgentPersona;
@@ -29,8 +33,23 @@ export class PersonaRouter {
     this.teacher = new TeacherPersona(extensionUri);
   }
 
-  async getPromptForMode(mode: string, context: PromptContext = {}): Promise<string> {
-    switch (mode) {
+  /**
+   * Resolve the effective persona and return the system prompt.
+   *
+   * When a session is active, the router overrides the user-selected
+   * mode to enforce the interview flow:
+   *   - Timer running -> Interviewer (Socratic hints only)
+   *   - User gave up -> Teacher (full explanation)
+   *   - Otherwise -> selected mode
+   */
+  async getPromptForMode(
+    mode: string,
+    context: PromptContext = {},
+    sessionState?: SessionState,
+  ): Promise<string> {
+    const effectiveMode = this._resolveMode(mode, sessionState);
+
+    switch (effectiveMode) {
       case "teach":
         return this.teacher.buildSystemPrompt(context);
       case "interview":
@@ -41,4 +60,22 @@ export class PersonaRouter {
     }
   }
 
+  /**
+   * Determine the effective mode after applying session-state overrides.
+   */
+  private _resolveMode(selectedMode: string, sessionState?: SessionState): string {
+    if (!sessionState?.isActive) {
+      return selectedMode;
+    }
+
+    if (sessionState.gaveUp) {
+      return "teach";
+    }
+
+    if (sessionState.timerRunning) {
+      return "interview";
+    }
+
+    return selectedMode;
+  }
 }

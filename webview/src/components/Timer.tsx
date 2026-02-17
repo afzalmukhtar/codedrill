@@ -8,57 +8,76 @@ function formatTime(ms: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-/**
- * Visual Countdown Timer
- *
- * Displays a countdown timer with color transitions:
- * - Green: >50% remaining
- * - Yellow: 25-50% remaining
- * - Red: <25% remaining
- *
- * Features: MM:SS display, progress bar, pause/resume button, phase colors
- */
-export function Timer() {
-  const { remainingMs, totalMs, phase, isRunning, isPaused, pause, resume, stop } = useTimer();
+interface TimerProps {
+  timerDurationMs?: number;
+}
 
-  if (!isRunning && remainingMs <= 0) {
+/**
+ * Minimal Countdown Timer
+ *
+ * Three states:
+ * 1. Ready: shows suggested duration + "Start" button
+ * 2. Running: shows countdown + pause/resume toggle + "End" button
+ * 3. Hidden: no active problem / no timer
+ */
+export function Timer({ timerDurationMs }: TimerProps) {
+  const { remainingMs, totalMs, phase, isRunning, isPaused, start, pause, resume, stop } = useTimer();
+
+  // Not running and no duration to offer = hide completely
+  if (!isRunning && !timerDurationMs) {
     return null;
   }
 
+  // Ready state: timer not running but we have a suggested duration
+  if (!isRunning && timerDurationMs && timerDurationMs > 0) {
+    const mins = Math.round(timerDurationMs / 60000);
+    return (
+      <div className="timer timer--ready">
+        <span className="timer-ready-label">{mins} min</span>
+        <button
+          type="button"
+          className="timer-start-btn"
+          onClick={() => start(timerDurationMs)}
+        >
+          Start Timer
+        </button>
+      </div>
+    );
+  }
+
+  // Running state
+  if (!isRunning) { return null; }
+
   const progress = totalMs > 0 ? (remainingMs / totalMs) * 100 : 0;
-  const isExpired = isRunning && remainingMs <= 0;
+  const isExpired = remainingMs <= 0;
 
   return (
     <div className={`timer timer--${phase}${isExpired ? " timer--expired" : ""}`}>
-      <div className="timer-display">
-        <span className="timer-time">{formatTime(remainingMs)}</span>
-        {isPaused && <span className="timer-paused-label">PAUSED</span>}
-      </div>
+      <span className="timer-time">{formatTime(remainingMs)}</span>
 
       <div className="timer-progress-track">
-        <div
-          className="timer-progress-bar"
-          style={{ width: `${progress}%` }}
-        />
+        <div className="timer-progress-bar" style={{ width: `${progress}%` }} />
       </div>
 
-      <div className="timer-controls">
-        {isRunning && !isPaused && (
-          <button className="timer-btn timer-btn--pause" onClick={pause} title="Pause timer">
-            &#10074;&#10074;
-          </button>
-        )}
-        {isRunning && isPaused && (
-          <button className="timer-btn timer-btn--resume" onClick={resume} title="Resume timer">
-            &#9654;
-          </button>
-        )}
-        {isRunning && (
-          <button className="timer-btn timer-btn--stop" onClick={stop} title="Stop timer">
-            &#9632;
-          </button>
-        )}
-      </div>
+      {!isExpired && (
+        <button
+          type="button"
+          className="timer-btn"
+          onClick={isPaused ? resume : pause}
+          title={isPaused ? "Resume" : "Pause"}
+        >
+          {isPaused ? "\u25B6" : "\u23F8"}
+        </button>
+      )}
+
+      <button
+        type="button"
+        className="timer-btn timer-btn--end"
+        onClick={stop}
+        title="End attempt"
+      >
+        End
+      </button>
     </div>
   );
 }
