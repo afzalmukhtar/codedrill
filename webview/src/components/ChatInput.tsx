@@ -1,6 +1,14 @@
 import React, { useState, useRef, useCallback } from "react";
 import { ModelSelector } from "./ModelSelector";
-import type { ModelInfo } from "../App";
+import type { ModelInfo, DrillMode } from "../App";
+
+const MODE_LABELS: Record<DrillMode, string> = {
+  agent: "Agent",
+  teach: "Teach",
+  interview: "Interview",
+};
+
+const MODE_ORDER: DrillMode[] = ["agent", "teach", "interview"];
 
 interface ChatInputProps {
   onSend: (text: string) => void;
@@ -8,6 +16,9 @@ interface ChatInputProps {
   models: ModelInfo[];
   selectedModel: string;
   onModelChange: (modelId: string) => void;
+  onConfigureModels: () => void;
+  mode: DrillMode;
+  onModeChange: (mode: DrillMode) => void;
 }
 
 export function ChatInput({
@@ -16,6 +27,9 @@ export function ChatInput({
   models,
   selectedModel,
   onModelChange,
+  onConfigureModels,
+  mode,
+  onModeChange,
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,17 +86,27 @@ export function ChatInput({
         </button>
       </div>
       <div className="chat-input-meta">
-        <button className="chat-chip chat-chip--button" type="button" title="Add context">
-          +
-        </button>
         <ModelSelector
           models={models}
           selectedModel={selectedModel}
           onModelChange={onModelChange}
+          onConfigure={onConfigureModels}
           compact
         />
-        <span className="chat-chip">Extra High</span>
-        <span className="chat-chip">IDE context</span>
+        <div className="mode-selector" role="radiogroup" aria-label="Mode">
+          {MODE_ORDER.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`mode-chip${m === mode ? " mode-chip--active" : ""}`}
+              onClick={() => onModeChange(m)}
+              role="radio"
+              aria-checked={m === mode}
+            >
+              {MODE_LABELS[m]}
+            </button>
+          ))}
+        </div>
       </div>
     </footer>
   );

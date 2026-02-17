@@ -100,7 +100,32 @@ body {
 }
 
 .model-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.model-selector-add {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--codedrill-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--codedrill-fg);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.model-selector-add:hover {
+  border-color: var(--codedrill-accent);
+  color: var(--codedrill-accent);
+  background: var(--codedrill-focus-ring);
 }
 
 .model-selector-dropdown {
@@ -121,6 +146,12 @@ body {
   border-radius: 999px;
   padding: 0 22px 0 9px;
   font-size: 11px;
+}
+
+.model-selector-dropdown--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: var(--codedrill-muted);
 }
 
 .model-selector-dropdown:focus {
@@ -365,27 +396,43 @@ body {
   flex-wrap: wrap;
 }
 
-.chat-chip {
+.mode-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.mode-chip {
   display: inline-flex;
   align-items: center;
   height: 20px;
   padding: 0 7px;
   border-radius: 999px;
   border: 1px solid var(--codedrill-subtle);
-  background: var(--codedrill-chip-bg);
+  background: transparent;
   color: var(--codedrill-muted);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.chat-chip--button {
-  width: 20px;
-  padding: 0;
-  justify-content: center;
-  background: transparent;
+.mode-chip:hover {
   color: var(--codedrill-fg);
-  cursor: pointer;
+  border-color: var(--codedrill-border);
+}
+
+.mode-chip--active {
+  background: var(--codedrill-accent);
+  color: var(--codedrill-bg);
+  border-color: var(--codedrill-accent);
+}
+
+.mode-chip--active:hover {
+  color: var(--codedrill-bg);
+  border-color: var(--codedrill-accent);
 }
 
 .chat-container::-webkit-scrollbar {
@@ -399,4 +446,19 @@ body {
 
 .chat-container::-webkit-scrollbar-thumb:hover {
   background: var(--vscode-scrollbarSlider-hoverBackground, rgba(121, 121, 121, 0.55));
+}
+
+/* Streaming cursor indicator */
+.chat-cursor {
+  display: inline-block;
+  color: var(--codedrill-accent);
+  animation: blink-cursor 1s steps(2) infinite;
+  font-weight: 200;
+  margin-left: 1px;
+}
+
+@keyframes blink-cursor {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
 }

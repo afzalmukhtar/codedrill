@@ -103,11 +103,14 @@ export function Chat({ messages, isLoading }: ChatProps) {
               <span className="chat-message-time">{formatTime(message.timestamp)}</span>
             </div>
           )}
-          <div className="chat-message-content">{renderStructuredContent(message.content)}</div>
+          <div className="chat-message-content">
+            {renderStructuredContent(message.content)}
+            {message.isStreaming && <span className="chat-cursor">▎</span>}
+          </div>
         </article>
       ))}
 
-      {isLoading && (
+      {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
         <article className="chat-message chat-message--assistant">
           <div className="chat-message-meta">
             <span className="chat-message-role">CodeDrill</span>

@@ -1,27 +1,32 @@
 {
   "$schema": "./codedrill.config.schema.json",
+
   "providers": {
-    "openrouter": {
-      "enabled": true,
-      "apiKey": "${OPENROUTER_API_KEY}"
-    },
     "ollama": {
       "enabled": true,
-      "baseUrl": "http://localhost:11434",
-      "models": []
+      "baseUrl": "http://localhost:11434"
     },
+
+    "openrouter": {
+      "enabled": false,
+      "apiKey": "${OPENROUTER_API_KEY}"
+    },
+
     "openai": {
       "enabled": false,
       "apiKey": "${OPENAI_API_KEY}"
     },
+
     "anthropic": {
       "enabled": false,
       "apiKey": "${ANTHROPIC_API_KEY}"
     },
+
     "google": {
       "enabled": false,
       "apiKey": "${GOOGLE_AI_API_KEY}"
     },
+
     "custom": {
       "enabled": false,
       "name": "My LM Studio",
@@ -30,7 +35,9 @@
       "models": ["local-model-name"]
     }
   },
-  "defaultModel": "anthropic/claude-sonnet-4",
+
+  "defaultModel": "qwen3:8b",
+
   "preferences": {
     "timerEasy": 20,
     "timerMedium": 35,

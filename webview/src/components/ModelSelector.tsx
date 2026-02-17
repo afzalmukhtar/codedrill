@@ -5,6 +5,7 @@ interface ModelSelectorProps {
   models: ModelInfo[];
   selectedModel: string;
   onModelChange: (modelId: string) => void;
+  onConfigure: () => void;
   compact?: boolean;
 }
 
@@ -12,6 +13,7 @@ export function ModelSelector({
   models,
   selectedModel,
   onModelChange,
+  onConfigure,
   compact = false,
 }: ModelSelectorProps) {
   const grouped = models.reduce<Record<string, ModelInfo[]>>((acc, model) => {
@@ -22,18 +24,28 @@ export function ModelSelector({
     return acc;
   }, {});
 
+  const hasModels = models.length > 0;
+
   return (
     <div className="model-selector">
+      <button
+        className="model-selector-add"
+        type="button"
+        onClick={onConfigure}
+        title="Configure models"
+        aria-label="Configure models"
+      >
+        +
+      </button>
       <select
-        className={`model-selector-dropdown${compact ? " model-selector-dropdown--compact" : ""}`}
-        value={selectedModel}
+        className={`model-selector-dropdown${compact ? " model-selector-dropdown--compact" : ""}${!hasModels ? " model-selector-dropdown--disabled" : ""}`}
+        value={hasModels ? selectedModel : ""}
         onChange={(event) => onModelChange(event.target.value)}
+        disabled={!hasModels}
         aria-label="Select model"
       >
-        {models.length === 0 && (
-          <option value="" disabled>
-            Loading models...
-          </option>
+        {!hasModels && (
+          <option value="">No models</option>
         )}
         {Object.entries(grouped).map(([provider, providerModels]) => (
           <optgroup key={provider} label={provider}>

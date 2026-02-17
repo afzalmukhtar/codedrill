@@ -7,7 +7,8 @@
       "request": "launch",
       "runtimeExecutable": "/Applications/Cursor.app/Contents/MacOS/Cursor",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}"
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "${workspaceFolder}"
       ],
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"
