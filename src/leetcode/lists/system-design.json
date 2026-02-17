@@ -1,0 +1,181 @@
+{
+  "name": "System Design Topics",
+  "description": "Curated system design topics covering fundamentals, building blocks, and full system designs commonly asked in technical interviews.",
+  "topics": [
+    {
+      "title": "Scaling Fundamentals",
+      "category": "Fundamentals",
+      "description": "Understand horizontal vs vertical scaling, load balancing strategies, and when to apply each.",
+      "keyConcepts": ["Horizontal scaling", "Vertical scaling", "Load balancing", "Auto-scaling", "Stateless services"],
+      "followUps": ["How does Netflix handle millions of concurrent streams?", "When would you choose vertical over horizontal scaling?"]
+    },
+    {
+      "title": "CAP Theorem",
+      "category": "Fundamentals",
+      "description": "Explain the CAP theorem and its implications for distributed system design decisions.",
+      "keyConcepts": ["Consistency", "Availability", "Partition tolerance", "CP vs AP systems", "Eventual consistency"],
+      "followUps": ["Is a banking system CP or AP?", "How does DynamoDB handle CAP trade-offs?"]
+    },
+    {
+      "title": "Database Sharding",
+      "category": "Fundamentals",
+      "description": "Design a sharding strategy for a database that needs to handle billions of records.",
+      "keyConcepts": ["Hash-based sharding", "Range-based sharding", "Consistent hashing", "Shard key selection", "Cross-shard queries"],
+      "followUps": ["How would you re-shard without downtime?", "What happens when a shard becomes a hotspot?"]
+    },
+    {
+      "title": "Caching Strategies",
+      "category": "Fundamentals",
+      "description": "Design a caching layer for a high-traffic web application.",
+      "keyConcepts": ["Cache-aside", "Write-through", "Write-behind", "Cache invalidation", "TTL", "Redis vs Memcached", "CDN caching"],
+      "followUps": ["How do you handle cache stampede?", "When is caching harmful?"]
+    },
+    {
+      "title": "SQL vs NoSQL",
+      "category": "Fundamentals",
+      "description": "Compare relational and non-relational databases and when to use each.",
+      "keyConcepts": ["ACID", "BASE", "Schema design", "Denormalization", "Document stores", "Key-value stores", "Column-family stores", "Graph databases"],
+      "followUps": ["When would you use both SQL and NoSQL in the same system?"]
+    },
+    {
+      "title": "Message Queues",
+      "category": "Building Blocks",
+      "description": "Design a message queue system for asynchronous processing.",
+      "keyConcepts": ["Pub/Sub", "Point-to-point", "Kafka", "RabbitMQ", "SQS", "Dead letter queues", "Exactly-once delivery", "Ordering guarantees"],
+      "followUps": ["How does Kafka achieve high throughput?", "How would you handle poison messages?"]
+    },
+    {
+      "title": "Rate Limiter",
+      "category": "Building Blocks",
+      "description": "Design a distributed rate limiter for an API gateway.",
+      "keyConcepts": ["Token bucket", "Leaky bucket", "Fixed window", "Sliding window", "Distributed rate limiting", "Redis-based implementation"],
+      "followUps": ["How do you rate limit across multiple data centers?", "What about per-user vs per-IP limiting?"]
+    },
+    {
+      "title": "Consistent Hashing",
+      "category": "Building Blocks",
+      "description": "Explain consistent hashing and design a system that uses it for load distribution.",
+      "keyConcepts": ["Hash ring", "Virtual nodes", "Replication", "Minimal disruption on scaling", "Node addition/removal"],
+      "followUps": ["How does DynamoDB use consistent hashing?", "What are the limitations?"]
+    },
+    {
+      "title": "API Gateway",
+      "category": "Building Blocks",
+      "description": "Design an API gateway for a microservices architecture.",
+      "keyConcepts": ["Request routing", "Authentication", "Rate limiting", "Load balancing", "Circuit breaker", "Request/response transformation"],
+      "followUps": ["How do you handle API versioning?", "What about WebSocket support?"]
+    },
+    {
+      "title": "Service Discovery",
+      "category": "Building Blocks",
+      "description": "Design a service discovery mechanism for a microservices ecosystem.",
+      "keyConcepts": ["Client-side discovery", "Server-side discovery", "Service registry", "Health checks", "DNS-based discovery", "Consul", "etcd"],
+      "followUps": ["How do you handle stale registrations?"]
+    },
+    {
+      "title": "URL Shortener",
+      "category": "Full System Design",
+      "description": "Design a URL shortening service like bit.ly that handles billions of URLs.",
+      "keyConcepts": ["Base62 encoding", "Hash collision handling", "Read-heavy workload", "Caching", "Analytics", "Expiration"],
+      "followUps": ["How do you handle custom short URLs?", "How do you prevent abuse?", "What's the maximum theoretical capacity?"]
+    },
+    {
+      "title": "Design Twitter / News Feed",
+      "category": "Full System Design",
+      "description": "Design the Twitter timeline / news feed system for millions of users.",
+      "keyConcepts": ["Fan-out on write vs fan-out on read", "Timeline service", "Social graph", "Caching hot timelines", "Ranking algorithms"],
+      "followUps": ["How do you handle celebrities with millions of followers?", "How does ranking work?"]
+    },
+    {
+      "title": "Design a Chat System",
+      "category": "Full System Design",
+      "description": "Design a real-time messaging system like WhatsApp or Slack.",
+      "keyConcepts": ["WebSockets", "Long polling", "Message storage", "Presence system", "Push notifications", "End-to-end encryption", "Group chat"],
+      "followUps": ["How do you handle offline messages?", "How do you implement read receipts?"]
+    },
+    {
+      "title": "Design a Notification System",
+      "category": "Full System Design",
+      "description": "Design a notification service that handles push, SMS, email, and in-app notifications.",
+      "keyConcepts": ["Multi-channel delivery", "Priority queues", "Rate limiting", "Template engine", "Retry logic", "User preferences"],
+      "followUps": ["How do you prevent notification fatigue?", "How do you ensure delivery?"]
+    },
+    {
+      "title": "Design YouTube / Video Streaming",
+      "category": "Full System Design",
+      "description": "Design a video streaming platform that serves millions of concurrent viewers.",
+      "keyConcepts": ["Video encoding", "Adaptive bitrate streaming", "CDN", "Chunked upload", "Thumbnails", "Recommendation engine"],
+      "followUps": ["How do you handle live streaming?", "How does adaptive bitrate work?"]
+    },
+    {
+      "title": "Design Google Drive / Dropbox",
+      "category": "Full System Design",
+      "description": "Design a cloud file storage and synchronization system.",
+      "keyConcepts": ["Chunked file storage", "Deduplication", "Conflict resolution", "Sync protocol", "Versioning", "Metadata service"],
+      "followUps": ["How do you handle concurrent edits?", "How does differential sync work?"]
+    },
+    {
+      "title": "Design a Search Engine",
+      "category": "Full System Design",
+      "description": "Design the core components of a web search engine.",
+      "keyConcepts": ["Web crawling", "Inverted index", "PageRank", "Query processing", "Spell correction", "Autocomplete"],
+      "followUps": ["How does Google handle trillions of web pages?", "How does autocomplete work?"]
+    },
+    {
+      "title": "Design an E-Commerce Platform",
+      "category": "Full System Design",
+      "description": "Design the backend for an e-commerce platform handling flash sales.",
+      "keyConcepts": ["Inventory management", "Order processing", "Payment integration", "Search and filtering", "Recommendation system", "Flash sale concurrency"],
+      "followUps": ["How do you prevent overselling during flash sales?", "How do you handle cart abandonment?"]
+    },
+    {
+      "title": "Design a Ride-Sharing Service",
+      "category": "Full System Design",
+      "description": "Design a ride-sharing platform like Uber or Lyft.",
+      "keyConcepts": ["Location tracking", "Geospatial indexing", "Matching algorithm", "ETA calculation", "Surge pricing", "Trip service"],
+      "followUps": ["How do you match drivers in real-time?", "How does surge pricing work algorithmically?"]
+    },
+    {
+      "title": "Design a Key-Value Store",
+      "category": "Full System Design",
+      "description": "Design a distributed key-value store like DynamoDB or Redis.",
+      "keyConcepts": ["Partitioning", "Replication", "Consistency models", "Conflict resolution", "Gossip protocol", "Merkle trees"],
+      "followUps": ["How does DynamoDB achieve single-digit millisecond latency?"]
+    },
+    {
+      "title": "Design a Web Crawler",
+      "category": "Full System Design",
+      "description": "Design a web crawler that can index billions of web pages.",
+      "keyConcepts": ["BFS/DFS crawling", "URL frontier", "Politeness", "Deduplication", "DNS resolver", "Distributed crawling"],
+      "followUps": ["How do you handle JavaScript-rendered pages?", "How do you respect robots.txt?"]
+    },
+    {
+      "title": "Design a Monitoring / Metrics System",
+      "category": "Full System Design",
+      "description": "Design a distributed monitoring system like Datadog or Prometheus.",
+      "keyConcepts": ["Time-series database", "Metric collection agents", "Aggregation", "Alerting rules", "Dashboard visualization", "Log ingestion"],
+      "followUps": ["How do you handle millions of metrics per second?", "How does anomaly detection work?"]
+    },
+    {
+      "title": "Design a Content Delivery Network (CDN)",
+      "category": "Full System Design",
+      "description": "Design a CDN for delivering static and dynamic content globally.",
+      "keyConcepts": ["Edge servers", "Origin server", "Cache hierarchy", "DNS routing", "Anycast", "Cache invalidation", "SSL termination"],
+      "followUps": ["How does Cloudflare handle DDoS attacks?", "How do you handle dynamic content at the edge?"]
+    },
+    {
+      "title": "Design a Payment System",
+      "category": "Full System Design",
+      "description": "Design a payment processing system like Stripe.",
+      "keyConcepts": ["Payment gateway", "Idempotency", "Double-entry bookkeeping", "PCI compliance", "Reconciliation", "Refunds", "Fraud detection"],
+      "followUps": ["How do you ensure exactly-once payment processing?", "How do you handle cross-border payments?"]
+    },
+    {
+      "title": "Design an Authentication System",
+      "category": "Full System Design",
+      "description": "Design an authentication and authorization system supporting SSO.",
+      "keyConcepts": ["OAuth 2.0", "OpenID Connect", "JWT", "Session management", "MFA", "RBAC", "Token refresh"],
+      "followUps": ["JWT vs session cookies - when to use which?", "How does SSO work across services?"]
+    }
+  ]
+}

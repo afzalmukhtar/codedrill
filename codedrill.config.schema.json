@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CodeDrill Configuration",
+  "description": "Configuration file for CodeDrill VSCode extension. Controls model providers, preferences, and session settings.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON schema reference for validation and autocomplete."
+    },
+    "providers": {
+      "type": "object",
+      "description": "Model provider configurations. Enable at least one provider to use AI features.",
+      "properties": {
+        "openrouter": {
+          "type": "object",
+          "description": "OpenRouter provides access to 300+ models from 60+ providers through a single API key.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable OpenRouter as a model provider."
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "OpenRouter API key. Use ${OPENROUTER_API_KEY} to reference an environment variable, or leave empty to use VSCode SecretStorage."
+            }
+          },
+          "required": ["enabled"]
+        },
+        "ollama": {
+          "type": "object",
+          "description": "Ollama runs models locally. No API key needed. Install from https://ollama.com/",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Ollama as a model provider."
+            },
+            "baseUrl": {
+              "type": "string",
+              "default": "http://localhost:11434",
+              "description": "Ollama server URL. Default is http://localhost:11434."
+            },
+            "models": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "description": "Manually specify model names. If empty, models are auto-discovered from the Ollama server."
+            }
+          },
+          "required": ["enabled"]
+        },
+        "openai": {
+          "type": "object",
+          "description": "OpenAI direct API access (GPT-4o, GPT-5, etc.).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable OpenAI as a model provider."
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "OpenAI API key. Use ${OPENAI_API_KEY} to reference an environment variable."
+            },
+            "baseUrl": {
+              "type": "string",
+              "description": "Custom base URL for OpenAI-compatible endpoints. Leave empty for default."
+            }
+          },
+          "required": ["enabled"]
+        },
+        "anthropic": {
+          "type": "object",
+          "description": "Anthropic direct API access (Claude models).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Anthropic as a model provider."
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "Anthropic API key. Use ${ANTHROPIC_API_KEY} to reference an environment variable."
+            }
+          },
+          "required": ["enabled"]
+        },
+        "google": {
+          "type": "object",
+          "description": "Google AI direct API access (Gemini models).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Google AI as a model provider."
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "Google AI API key. Use ${GOOGLE_AI_API_KEY} to reference an environment variable."
+            }
+          },
+          "required": ["enabled"]
+        },
+        "custom": {
+          "type": "object",
+          "description": "Any OpenAI-compatible endpoint (LM Studio, vLLM, text-generation-inference, etc.).",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable the custom endpoint as a model provider."
+            },
+            "name": {
+              "type": "string",
+              "description": "Display name for this provider in the model selector."
+            },
+            "baseUrl": {
+              "type": "string",
+              "description": "Base URL of the OpenAI-compatible API (e.g., http://localhost:1234/v1)."
+            },
+            "apiKey": {
+              "type": "string",
+              "default": "",
+              "description": "API key for the custom endpoint. Leave empty if not required."
+            },
+            "models": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of model names available at this endpoint."
+            }
+          },
+          "required": ["enabled", "baseUrl"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "defaultModel": {
+      "type": "string",
+      "description": "The model ID to use by default (e.g., 'anthropic/claude-sonnet-4', 'ollama/qwen2.5-coder')."
+    },
+    "preferences": {
+      "type": "object",
+      "description": "User preferences for sessions, timers, and problem selection.",
+      "properties": {
+        "timerEasy": {
+          "type": "number",
+          "default": 20,
+          "minimum": 5,
+          "maximum": 120,
+          "description": "Timer duration in minutes for Easy problems."
+        },
+        "timerMedium": {
+          "type": "number",
+          "default": 35,
+          "minimum": 10,
+          "maximum": 120,
+          "description": "Timer duration in minutes for Medium problems."
+        },
+        "timerHard": {
+          "type": "number",
+          "default": 50,
+          "minimum": 15,
+          "maximum": 180,
+          "description": "Timer duration in minutes for Hard problems."
+        },
+        "timerSystemDesign": {
+          "type": "number",
+          "default": 45,
+          "minimum": 15,
+          "maximum": 180,
+          "description": "Timer duration in minutes for System Design problems."
+        },
+        "problemLists": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["neetcode150", "blind75", "grind75", "system-design"]
+          },
+          "default": ["neetcode150", "blind75"],
+          "description": "Active curated problem lists to draw from."
+        },
+        "dailyNewProblems": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Number of new problems per session."
+        },
+        "dailyReviewProblems": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 20,
+          "description": "Number of review problems per session."
+        },
+        "mutationStartsAtAttempt": {
+          "type": "number",
+          "default": 3,
+          "minimum": 2,
+          "maximum": 10,
+          "description": "Attempt number at which problem mutations begin."
+        },
+        "preferredLanguage": {
+          "type": "string",
+          "enum": ["python", "javascript", "typescript", "java", "cpp", "go", "rust", "csharp"],
+          "default": "python",
+          "description": "Preferred programming language for code solutions."
+        },
+        "autoIncludeCurrentFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically include the current editor file as context in AI conversations."
+        },
+        "maxContextTokens": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 1000,
+          "maximum": 100000,
+          "description": "Maximum token budget for context attachments sent to the LLM."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["providers"],
+  "additionalProperties": false
+}

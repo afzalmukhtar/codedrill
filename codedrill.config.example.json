@@ -1,0 +1,47 @@
+{
+  "$schema": "./codedrill.config.schema.json",
+  "providers": {
+    "openrouter": {
+      "enabled": true,
+      "apiKey": "${OPENROUTER_API_KEY}"
+    },
+    "ollama": {
+      "enabled": true,
+      "baseUrl": "http://localhost:11434",
+      "models": []
+    },
+    "openai": {
+      "enabled": false,
+      "apiKey": "${OPENAI_API_KEY}"
+    },
+    "anthropic": {
+      "enabled": false,
+      "apiKey": "${ANTHROPIC_API_KEY}"
+    },
+    "google": {
+      "enabled": false,
+      "apiKey": "${GOOGLE_AI_API_KEY}"
+    },
+    "custom": {
+      "enabled": false,
+      "name": "My LM Studio",
+      "baseUrl": "http://localhost:1234/v1",
+      "apiKey": "",
+      "models": ["local-model-name"]
+    }
+  },
+  "defaultModel": "anthropic/claude-sonnet-4",
+  "preferences": {
+    "timerEasy": 20,
+    "timerMedium": 35,
+    "timerHard": 50,
+    "timerSystemDesign": 45,
+    "problemLists": ["neetcode150", "blind75"],
+    "dailyNewProblems": 1,
+    "dailyReviewProblems": 1,
+    "mutationStartsAtAttempt": 3,
+    "preferredLanguage": "python",
+    "autoIncludeCurrentFile": true,
+    "maxContextTokens": 8000
+  }
+}

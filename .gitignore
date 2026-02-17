@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+out/
+*.vsix
+
+# SQLite database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Config with secrets (only example is committed)
+codedrill.config.json
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# WASM artifacts (sql.js downloads at runtime)
+*.wasm
+
+# Logs
+*.log
+npm-debug.log*
