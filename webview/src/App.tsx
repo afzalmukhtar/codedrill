@@ -46,6 +46,12 @@ export interface ChatSummary {
   preview: string;
 }
 
+export interface ContextBadge {
+  type: string;
+  label: string;
+  tokenEstimate: number;
+}
+
 const MODE_LABELS: Record<DrillMode, string> = {
   agent: "Agent",
   teach: "Teach",
@@ -89,6 +95,7 @@ export function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatSummary[]>([]);
+  const [contextBadges, setContextBadges] = useState<ContextBadge[]>([]);
   const streamBufferRef = useRef<string>("");
 
   // Persist state whenever key values change
@@ -224,6 +231,10 @@ export function App() {
           setChatHistory(message.chats as ChatSummary[]);
           break;
 
+        case "contextAttached":
+          setContextBadges((message.badges as ContextBadge[]) ?? []);
+          break;
+
         default:
           break;
       }
@@ -243,6 +254,7 @@ export function App() {
       { role: "user", content: text.trim(), timestamp: Date.now() },
     ]);
     streamBufferRef.current = "";
+    setContextBadges([]);
     setIsLoading(true);
     vscodeApi.postMessage({ type: "sendMessage", text: text.trim() });
   }, []);
@@ -371,6 +383,7 @@ export function App() {
           onConfigureModels={handleConfigureModels}
           mode={mode}
           onModeChange={handleModeChange}
+          contextBadges={contextBadges}
         />
       </div>
     </VscodeContext.Provider>

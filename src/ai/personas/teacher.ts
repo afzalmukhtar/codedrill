@@ -19,12 +19,15 @@
  * 10. Related problems
  */
 
-// import { LLMRouter } from "../llm-router";
-// import { ChatMessage, ContextAttachment } from "../providers/types";
+import * as vscode from "vscode";
+import type { PromptContext } from "./prompt-loader";
+import { buildPrompt, loadPromptTemplate } from "./prompt-loader";
 
 export class TeacherPersona {
-  // TODO: constructor(llmRouter: LLMRouter)
-  // TODO: explain(context: TeachingContext): AsyncIterable<string>
-  // TODO: answerFollowUp(question: string, context: TeachingContext): AsyncIterable<string>
-  // TODO: buildSystemPrompt(context: TeachingContext): string
+  constructor(private readonly extensionUri: vscode.Uri) {}
+
+  async buildSystemPrompt(context: PromptContext = {}): Promise<string> {
+    const template = await loadPromptTemplate(this.extensionUri, "teacher-system.md");
+    return buildPrompt(template, context);
+  }
 }

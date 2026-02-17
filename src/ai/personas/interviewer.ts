@@ -14,14 +14,15 @@
  * 5. Edge case probing
  */
 
-// import { LLMRouter } from "../llm-router";
-// import { ChatMessage, ContextAttachment } from "../providers/types";
+import * as vscode from "vscode";
+import type { PromptContext } from "./prompt-loader";
+import { buildPrompt, loadPromptTemplate } from "./prompt-loader";
 
 export class InterviewerPersona {
-  // TODO: constructor(llmRouter: LLMRouter)
-  // TODO: getHint(context: InterviewContext): AsyncIterable<string>
-  // TODO: getCurrentHintLevel(): number
-  // TODO: escalateHintLevel(): void
-  // TODO: resetHintLevel(): void
-  // TODO: buildSystemPrompt(context: InterviewContext): string
+  constructor(private readonly extensionUri: vscode.Uri) {}
+
+  async buildSystemPrompt(context: PromptContext = {}): Promise<string> {
+    const template = await loadPromptTemplate(this.extensionUri, "interviewer-system.md");
+    return buildPrompt(template, context);
+  }
 }

@@ -2,7 +2,10 @@ import * as vscode from "vscode";
 import type { ConfigManager } from "../utils/config";
 import type { LLMRouter } from "../ai/llm-router";
 import type { ChatMessage } from "../ai/providers/types";
-import { ChatStorage, type ChatSession, type StoredMessage } from "../storage/chat-storage";
+import type { PromptContext } from "../ai/personas/prompt-loader";
+import { PersonaRouter } from "../ai/personas/persona-router";
+import { ChatStorage, type ChatSession } from "../storage/chat-storage";
+import { ContextEngine } from "../context/context-engine";
 
 /**
  * Sidebar Webview Provider
@@ -25,6 +28,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // AbortController for the current streaming request
   private _abortController: AbortController | null = null;
 
+  private readonly _contextEngine: ContextEngine;
+  private readonly _personaRouter: PersonaRouter;
+
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _configManager: ConfigManager,
@@ -32,6 +38,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   ) {
     const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
     this._chatStorage = new ChatStorage(workspaceUri);
+    this._contextEngine = new ContextEngine();
+    this._personaRouter = new PersonaRouter(this._extensionUri);
   }
 
   public resolveWebviewView(
@@ -198,11 +206,25 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const abortController = new AbortController();
     this._abortController = abortController;
 
+    // Gather IDE context (active file, selection, cursor surroundings)
+    const contextAttachments = this._contextEngine.gatherAutoContext();
+    const systemPrompt = await this._getSystemPrompt(contextAttachments);
+
+    // Send context badges to the webview for display
+    this.postMessage({
+      type: "contextAttached",
+      badges: contextAttachments.map((a) => ({
+        type: a.type,
+        label: a.label,
+        tokenEstimate: a.tokenEstimate,
+      })),
+    });
+
     try {
       const stream = this._router.chat({
         model: this._selectedModel,
         messages: this._conversationHistory,
-        systemPrompt: this._getSystemPrompt(),
+        systemPrompt,
         stream: true,
         temperature: 0.7,
       });
@@ -354,30 +376,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // System prompts per mode
   // ================================================================
 
-  private _getSystemPrompt(): string {
-    switch (this._mode) {
-      case "teach":
-        return (
-          "You are CodeDrill in Teach mode. You are a patient, thorough coding teacher. " +
-          "Explain concepts step by step with examples. Focus on building deep understanding " +
-          "of algorithms, data structures, and system design. Use analogies and diagrams (ASCII) " +
-          "when helpful. Ask the student questions to check understanding."
-        );
-      case "interview":
-        return (
-          "You are CodeDrill in Interview mode. You are a realistic coding interviewer. " +
-          "Present problems, give hints only when asked (escalating from subtle to direct), " +
-          "ask clarifying questions, probe edge cases, and evaluate solutions. " +
-          "Never give the answer directly. Guide the candidate using the Socratic method."
-        );
-      case "agent":
-      default:
-        return (
-          "You are CodeDrill, an expert coding interview coach. " +
-          "Help the user understand algorithms, data structures, and system design. " +
-          "Be concise, encouraging, and provide clear explanations."
-        );
-    }
+  private async _getSystemPrompt(contextAttachments: ReturnType<ContextEngine["gatherAutoContext"]>): Promise<string> {
+    const context = this._buildPromptContext(contextAttachments);
+    return this._personaRouter.getPromptForMode(this._mode, context);
+  }
+
+  private _buildPromptContext(
+    contextAttachments: ReturnType<ContextEngine["gatherAutoContext"]>,
+  ): PromptContext {
+    const fileAttachment = contextAttachments.find((a) => a.type === "file");
+    const selectionAttachment = contextAttachments.find((a) => a.type === "selection");
+
+    return {
+      filePath: fileAttachment?.metadata?.filePath,
+      language: fileAttachment?.metadata?.language,
+      fileContent: fileAttachment?.content,
+      selection: selectionAttachment?.content,
+    };
   }
 
   // ================================================================

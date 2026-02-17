@@ -12,11 +12,46 @@
  * - Between sessions -> Teacher (for review/discussion)
  */
 
-// import { InterviewerPersona } from "./interviewer";
-// import { TeacherPersona } from "./teacher";
+import * as vscode from "vscode";
+import { AgentPersona } from "./agent";
+import { InterviewerPersona } from "./interviewer";
+import type { PromptContext } from "./prompt-loader";
+import { TeacherPersona } from "./teacher";
+
+export type PersonaMode = "agent" | "teach" | "interview";
 
 export class PersonaRouter {
-  // TODO: constructor(interviewer, teacher)
-  // TODO: routeMessage(message, sessionState): AsyncIterable<string>
-  // TODO: getActivePersona(sessionState): "interviewer" | "teacher"
+  private readonly agent: AgentPersona;
+  private readonly interviewer: InterviewerPersona;
+  private readonly teacher: TeacherPersona;
+
+  constructor(extensionUri: vscode.Uri) {
+    this.agent = new AgentPersona(extensionUri);
+    this.interviewer = new InterviewerPersona(extensionUri);
+    this.teacher = new TeacherPersona(extensionUri);
+  }
+
+  async getPromptForMode(mode: string, context: PromptContext = {}): Promise<string> {
+    switch (mode) {
+      case "teach":
+        return this.teacher.buildSystemPrompt(context);
+      case "interview":
+        return this.interviewer.buildSystemPrompt(context);
+      case "agent":
+      default:
+        return this.agent.buildSystemPrompt(context);
+    }
+  }
+
+  getActivePersona(mode: string): PersonaMode {
+    switch (mode) {
+      case "teach":
+        return "teach";
+      case "interview":
+        return "interview";
+      case "agent":
+      default:
+        return "agent";
+    }
+  }
 }

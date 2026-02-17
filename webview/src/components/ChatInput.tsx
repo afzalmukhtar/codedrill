@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from "react";
 import { ModelSelector } from "./ModelSelector";
-import type { ModelInfo, DrillMode } from "../App";
+import type { ModelInfo, DrillMode, ContextBadge } from "../App";
 
 const MODE_LABELS: Record<DrillMode, string> = {
   agent: "Agent",
@@ -20,6 +20,7 @@ interface ChatInputProps {
   onConfigureModels: () => void;
   mode: DrillMode;
   onModeChange: (mode: DrillMode) => void;
+  contextBadges: ContextBadge[];
 }
 
 export function ChatInput({
@@ -32,6 +33,7 @@ export function ChatInput({
   onConfigureModels,
   mode,
   onModeChange,
+  contextBadges,
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -106,6 +108,15 @@ export function ChatInput({
           </button>
         )}
       </div>
+      {contextBadges.length > 0 && (
+        <div className="context-badges" aria-label="Attached context">
+          {contextBadges.map((badge, i) => (
+            <span key={`${badge.type}-${i}`} className={`context-badge context-badge--${badge.type}`} title={`${badge.label} (~${badge.tokenEstimate} tokens)`}>
+              {badge.type === "selection" ? "sel" : "file"}: {badge.label}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="chat-input-meta">
         <ModelSelector
           models={models}
