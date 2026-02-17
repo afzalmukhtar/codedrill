@@ -227,6 +227,26 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       console.error("[SidebarProvider] Error during ready:", err);
       this.postMessage({ type: "modelsLoaded", models: [], defaultModel: "" });
     }
+
+    // Resend active problem + timer state so the webview can restore context
+    // after being destroyed and recreated (e.g. user switched sidebar tabs).
+    if (this._activeProblem) {
+      this.postMessage({
+        type: "problemLoaded",
+        problem: this._activeProblem,
+      });
+    }
+
+    if (this._timer.isRunning) {
+      this.postMessage({
+        type: "timerUpdate",
+        remainingMs: this._timer.getRemainingMs(),
+        totalMs: this._timer.durationMs,
+        phase: this._timer.getPhase(),
+        isRunning: true,
+        isPaused: this._timer.isPaused,
+      });
+    }
   }
 
   private _sendModelsToWebview(): void {

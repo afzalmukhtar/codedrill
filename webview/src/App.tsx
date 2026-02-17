@@ -69,6 +69,12 @@ interface PersistedState {
   selectedModel: string;
   mode: DrillMode;
   activeChatId: string | null;
+  activeProblem: {
+    title: string;
+    difficulty: string;
+    category: string;
+    timerDurationMs?: number;
+  } | null;
 }
 
 function loadPersistedState(): PersistedState | null {
@@ -109,7 +115,7 @@ export function App() {
     difficulty: string;
     category: string;
     timerDurationMs?: number;
-  } | null>(null);
+  } | null>(() => persisted.current?.activeProblem ?? null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionProgress, setSessionProgress] = useState<SessionProgress | null>(null);
   const [sessionStreamContent, setSessionStreamContent] = useState("");
@@ -128,9 +134,10 @@ export function App() {
       selectedModel,
       mode,
       activeChatId,
+      activeProblem,
     };
     vscodeApi.setState(state);
-  }, [messages, selectedModel, mode, activeChatId]);
+  }, [messages, selectedModel, mode, activeChatId, activeProblem]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
