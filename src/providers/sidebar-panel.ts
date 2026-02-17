@@ -665,6 +665,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         });
         break;
       }
+      case "reset": {
+        this._timer.reset();
+        this.postMessage({ type: "timerStopped", elapsedMs: 0, wasExpired: false });
+        break;
+      }
     }
   }
 

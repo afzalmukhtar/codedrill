@@ -84,6 +84,19 @@ export class Timer {
     return { elapsedMs: elapsed, wasExpired };
   }
 
+  /**
+   * Stop the timer and clear all internal state so it can be restarted.
+   */
+  reset(): void {
+    this.stop();
+    this._durationMs = 0;
+    this._startTime = 0;
+    this._pausedAt = 0;
+    this._totalPausedMs = 0;
+    this._hasExpired = false;
+    this._warningSent = false;
+  }
+
   getElapsedMs(): number {
     if (!this._isRunning) { return 0; }
     const now = this._isPaused ? this._pausedAt : Date.now();

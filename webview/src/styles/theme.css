@@ -666,122 +666,201 @@ body {
 
 /* ── Timer ── */
 
-.timer {
+.timer-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0 12px;
+  padding: 16px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--codedrill-border);
+  background: color-mix(in srgb, var(--codedrill-bg) 88%, #000 12%);
+}
+
+/* ── Large MM:SS display row ── */
+
+.timer-display {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 12px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--codedrill-border);
-  background: color-mix(in srgb, var(--codedrill-bg) 92%, #111 8%);
-  transition: border-color 0.3s;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
 }
 
-.timer--ready {
-  justify-content: space-between;
-}
-
-.timer-ready-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--codedrill-muted);
-  font-family: var(--vscode-editor-font-family, monospace);
-}
-
-.timer-start-btn {
-  padding: 4px 14px;
-  border: 1px solid var(--codedrill-accent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--codedrill-accent) 12%, transparent);
-  color: var(--codedrill-accent);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.timer-start-btn:hover {
-  background: color-mix(in srgb, var(--codedrill-accent) 22%, transparent);
-}
-
-.timer--green { border-color: color-mix(in srgb, #22c55e 40%, var(--codedrill-border)); }
-.timer--yellow { border-color: color-mix(in srgb, #eab308 40%, var(--codedrill-border)); }
-.timer--red { border-color: color-mix(in srgb, #ef4444 50%, var(--codedrill-border)); animation: timer-pulse 1s ease-in-out infinite; }
-.timer--expired { background: color-mix(in srgb, #ef4444 10%, transparent); }
-
-.timer-time {
-  font-size: 14px;
+.timer-digits,
+.timer-seconds {
+  font-size: 52px;
   font-weight: 700;
   font-family: var(--vscode-editor-font-family, monospace);
-  letter-spacing: 0.5px;
-  min-width: 48px;
+  color: #e4e4e7;
+  letter-spacing: 2px;
+  line-height: 1;
+  user-select: none;
 }
 
-.timer--green .timer-time { color: #22c55e; }
-.timer--yellow .timer-time { color: #eab308; }
-.timer--red .timer-time { color: #ef4444; }
-
-.timer-progress-track {
-  flex: 1;
-  height: 3px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--codedrill-border) 50%, transparent);
-  overflow: hidden;
-  min-width: 30px;
+.timer-digits--expired {
+  color: #ef4444;
+  animation: timer-blink 1s step-end infinite;
 }
 
-.timer-progress-bar {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 1s linear, background-color 0.3s;
+@keyframes timer-blink {
+  50% { opacity: 0.4; }
 }
 
-.timer--green .timer-progress-bar { background: #22c55e; }
-.timer--yellow .timer-progress-bar { background: #eab308; }
-.timer--red .timer-progress-bar { background: #ef4444; }
+.timer-colon {
+  font-size: 48px;
+  font-weight: 700;
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: #a1a1aa;
+  padding: 0 2px;
+  line-height: 1;
+  user-select: none;
+}
 
-.timer-btn {
+/* ── Minutes editable input (idle state) ── */
+
+.timer-minutes-input {
+  width: 72px;
+  font-size: 52px;
+  font-weight: 700;
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: #e4e4e7;
+  letter-spacing: 2px;
+  line-height: 1;
+  text-align: center;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  -moz-appearance: textfield;
+}
+
+.timer-minutes-input::-webkit-outer-spin-button,
+.timer-minutes-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timer-minutes-input:focus {
+  border-bottom: 2px solid var(--codedrill-accent);
+}
+
+/* ── +/- adjust buttons ── */
+
+.timer-adjust-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: 1px solid var(--codedrill-subtle);
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 10px;
-  line-height: 1;
+  border: 1px solid var(--codedrill-border);
+  border-radius: 50%;
   background: transparent;
-  color: var(--codedrill-muted);
+  color: #a1a1aa;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
-.timer-btn:hover {
-  color: var(--codedrill-fg);
-  border-color: var(--codedrill-border);
-  background: var(--codedrill-subtle);
+.timer-adjust-btn:hover:not(:disabled) {
+  color: #e4e4e7;
+  border-color: #71717a;
+  background: color-mix(in srgb, #fff 6%, transparent);
 }
 
-.timer-btn--end {
-  font-size: 10px;
+.timer-adjust-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── Quick-add pill buttons ── */
+
+.timer-quick-btns {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.timer-pill {
+  padding: 4px 14px;
+  border: 1px solid #3f3f46;
+  border-radius: 20px;
+  background: transparent;
+  color: #a1a1aa;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.timer-pill:hover {
+  color: #e4e4e7;
+  border-color: #71717a;
+  background: color-mix(in srgb, #fff 6%, transparent);
+}
+
+/* ── Control buttons (Start / Stop / Reset) ── */
+
+.timer-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.timer-ctrl {
+  padding: 6px 20px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
   font-weight: 600;
-  width: auto;
-  padding: 0 8px;
-  color: var(--codedrill-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
 }
 
-.timer-btn--end:hover {
+.timer-ctrl:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.timer-ctrl--start {
+  background: color-mix(in srgb, #22c55e 15%, transparent);
+  color: #22c55e;
+  border-color: color-mix(in srgb, #22c55e 35%, transparent);
+}
+
+.timer-ctrl--start:hover:not(:disabled) {
+  background: color-mix(in srgb, #22c55e 25%, transparent);
+}
+
+.timer-ctrl--stop {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
   color: #ef4444;
-  border-color: color-mix(in srgb, #ef4444 40%, var(--codedrill-border));
-  background: color-mix(in srgb, #ef4444 10%, transparent);
+  border-color: color-mix(in srgb, #ef4444 30%, transparent);
 }
 
-@keyframes timer-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+.timer-ctrl--stop:hover:not(:disabled) {
+  background: color-mix(in srgb, #ef4444 22%, transparent);
+}
+
+.timer-ctrl--reset {
+  background: transparent;
+  color: #a1a1aa;
+  border-color: #3f3f46;
+}
+
+.timer-ctrl--reset:hover:not(:disabled) {
+  color: #e4e4e7;
+  border-color: #71717a;
+  background: color-mix(in srgb, #fff 6%, transparent);
 }
 
 /* ── Rating Panel ── */

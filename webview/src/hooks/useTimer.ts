@@ -1,33 +1,47 @@
 import { useState, useEffect, useCallback } from "react";
 import { useVscode } from "../App";
 
-type TimerPhase = "green" | "yellow" | "red";
-
 export interface TimerState {
+  /** Milliseconds remaining on the countdown (0 when idle). */
   remainingMs: number;
+  /** Total duration the timer was started with. */
   totalMs: number;
-  phase: TimerPhase;
+  /** Whether the countdown is actively running. */
   isRunning: boolean;
+  /** Whether the running timer is paused. */
   isPaused: boolean;
+
+  /**
+   * The user-chosen duration in ms (set before starting).
+   * This is the value the UI edits with +/- and quick-add.
+   */
+  durationMs: number;
+  setDurationMs: (ms: number) => void;
+
   start: (durationMs: number) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
+  reset: () => void;
 }
 
 /**
  * Timer Hook
  *
- * Listens for timerUpdate / timerExpired messages from the extension host.
- * Sends timerAction messages back for start / pause / resume / stop.
+ * Listens for timerUpdate / timerExpired / timerStopped messages from the
+ * extension host. Sends timerAction messages back for start / pause /
+ * resume / stop / reset.
+ *
+ * Also exposes `durationMs` / `setDurationMs` so the Timer component can
+ * let the user choose a duration before pressing Start.
  */
 export function useTimer(): TimerState {
   const { postMessage } = useVscode();
   const [remainingMs, setRemainingMs] = useState(0);
   const [totalMs, setTotalMs] = useState(0);
-  const [phase, setPhase] = useState<TimerPhase>("green");
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [durationMs, setDurationMs] = useState(0);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -38,7 +52,6 @@ export function useTimer(): TimerState {
         case "timerUpdate":
           setRemainingMs(message.remainingMs ?? 0);
           setTotalMs(message.totalMs ?? 0);
-          setPhase((message.phase as TimerPhase) ?? "green");
           setIsRunning(message.isRunning ?? false);
           setIsPaused(message.isPaused ?? false);
           break;
@@ -47,7 +60,6 @@ export function useTimer(): TimerState {
           setRemainingMs(0);
           setIsRunning(false);
           setIsPaused(false);
-          setPhase("red");
           break;
 
         case "timerStopped":
@@ -61,13 +73,12 @@ export function useTimer(): TimerState {
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  const start = useCallback((durationMs: number) => {
-    postMessage({ type: "timerAction", action: "start", durationMs });
-    setTotalMs(durationMs);
-    setRemainingMs(durationMs);
+  const start = useCallback((ms: number) => {
+    postMessage({ type: "timerAction", action: "start", durationMs: ms });
+    setTotalMs(ms);
+    setRemainingMs(ms);
     setIsRunning(true);
     setIsPaused(false);
-    setPhase("green");
   }, [postMessage]);
 
   const pause = useCallback(() => {
@@ -86,15 +97,26 @@ export function useTimer(): TimerState {
     setIsPaused(false);
   }, [postMessage]);
 
+  const reset = useCallback(() => {
+    postMessage({ type: "timerAction", action: "reset" });
+    setRemainingMs(0);
+    setTotalMs(0);
+    setIsRunning(false);
+    setIsPaused(false);
+    setDurationMs(0);
+  }, [postMessage]);
+
   return {
     remainingMs,
     totalMs,
-    phase,
     isRunning,
     isPaused,
+    durationMs,
+    setDurationMs,
     start,
     pause,
     resume,
     stop,
+    reset,
   };
 }
