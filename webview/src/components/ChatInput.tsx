@@ -12,6 +12,7 @@ const MODE_ORDER: DrillMode[] = ["agent", "teach", "interview"];
 
 interface ChatInputProps {
   onSend: (text: string) => void;
+  onInterrupt: () => void;
   isLoading: boolean;
   models: ModelInfo[];
   selectedModel: string;
@@ -23,6 +24,7 @@ interface ChatInputProps {
 
 export function ChatInput({
   onSend,
+  onInterrupt,
   isLoading,
   models,
   selectedModel,
@@ -35,14 +37,22 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = useCallback(() => {
-    if (!text.trim() || isLoading) return;
+    if (!text.trim()) return;
+
+    if (isLoading) {
+      onInterrupt();
+    }
 
     onSend(text);
     setText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [isLoading, onSend, text]);
+  }, [isLoading, onInterrupt, onSend, text]);
+
+  const handleStop = useCallback(() => {
+    onInterrupt();
+  }, [onInterrupt]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -67,23 +77,34 @@ export function ChatInput({
         <textarea
           ref={textareaRef}
           className="chat-input-textarea"
-          placeholder="Ask CodeDrill anything..."
+          placeholder={isLoading ? "Type to interrupt..." : "Ask CodeDrill anything..."}
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          disabled={isLoading}
           rows={1}
         />
-        <button
-          className="chat-input-send"
-          type="button"
-          onClick={handleSend}
-          disabled={!text.trim() || isLoading}
-          title="Send message"
-          aria-label="Send message"
-        >
-          ↑
-        </button>
+        {isLoading && !text.trim() ? (
+          <button
+            className="chat-input-send chat-input-send--stop"
+            type="button"
+            onClick={handleStop}
+            title="Stop generating"
+            aria-label="Stop generating"
+          >
+            ■
+          </button>
+        ) : (
+          <button
+            className="chat-input-send"
+            type="button"
+            onClick={handleSend}
+            disabled={!text.trim()}
+            title={isLoading ? "Interrupt and send" : "Send message"}
+            aria-label={isLoading ? "Interrupt and send" : "Send message"}
+          >
+            ↑
+          </button>
+        )}
       </div>
       <div className="chat-input-meta">
         <ModelSelector

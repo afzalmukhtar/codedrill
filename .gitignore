@@ -16,6 +16,9 @@ out/
 # Config with secrets (only example is committed)
 codedrill.config.json
 
+# User data directory (chat history, database, profile)
+.codedrill/
+
 # Environment variables
 .env
 .env.local

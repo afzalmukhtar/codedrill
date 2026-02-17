@@ -37,6 +37,15 @@ export interface ModelInfo {
 
 export type DrillMode = "agent" | "teach" | "interview";
 
+export interface ChatSummary {
+  id: string;
+  title: string;
+  mode: string;
+  updatedAt: number;
+  messageCount: number;
+  preview: string;
+}
+
 const MODE_LABELS: Record<DrillMode, string> = {
   agent: "Agent",
   teach: "Teach",
@@ -48,6 +57,7 @@ interface PersistedState {
   messages: ChatMessage[];
   selectedModel: string;
   mode: DrillMode;
+  activeChatId: string | null;
 }
 
 function loadPersistedState(): PersistedState | null {
@@ -73,18 +83,24 @@ export function App() {
   const [mode, setMode] = useState<DrillMode>(
     () => persisted.current?.mode ?? "agent"
   );
+  const [activeChatId, setActiveChatId] = useState<string | null>(
+    () => persisted.current?.activeChatId ?? null
+  );
   const [isLoading, setIsLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatSummary[]>([]);
   const streamBufferRef = useRef<string>("");
 
-  // Persist state whenever messages, selectedModel, or mode change
+  // Persist state whenever key values change
   useEffect(() => {
     const state: PersistedState = {
       messages: messages.map((m) => ({ ...m, isStreaming: false })),
       selectedModel,
       mode,
+      activeChatId,
     };
     vscodeApi.setState(state);
-  }, [messages, selectedModel, mode]);
+  }, [messages, selectedModel, mode, activeChatId]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -162,6 +178,22 @@ export function App() {
           break;
         }
 
+        case "chatInterrupted": {
+          streamBufferRef.current = "";
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last && last.role === "assistant" && last.isStreaming) {
+              return [
+                ...prev.slice(0, -1),
+                { ...last, isStreaming: false },
+              ];
+            }
+            return prev;
+          });
+          setIsLoading(false);
+          break;
+        }
+
         case "modelsLoaded":
           setModels(message.models as ModelInfo[]);
           if (message.defaultModel) {
@@ -169,11 +201,27 @@ export function App() {
           }
           break;
 
-        // Restore conversation history sent from the extension host
-        case "restoreMessages":
-          if (Array.isArray(message.messages) && message.messages.length > 0) {
-            setMessages(message.messages as ChatMessage[]);
+        case "chatLoaded": {
+          const loaded = message as {
+            chatId: string;
+            messages: ChatMessage[];
+            mode: string;
+          };
+          setActiveChatId(loaded.chatId);
+          setMessages(loaded.messages);
+          if (loaded.mode) {
+            setMode(loaded.mode as DrillMode);
           }
+          setShowHistory(false);
+          break;
+        }
+
+        case "chatCreated":
+          setActiveChatId(message.chatId as string);
+          break;
+
+        case "chatHistoryList":
+          setChatHistory(message.chats as ChatSummary[]);
           break;
 
         default:
@@ -199,6 +247,10 @@ export function App() {
     vscodeApi.postMessage({ type: "sendMessage", text: text.trim() });
   }, []);
 
+  const handleInterrupt = useCallback(() => {
+    vscodeApi.postMessage({ type: "interrupt" });
+  }, []);
+
   const handleModelChange = useCallback((modelId: string) => {
     setSelectedModel(modelId);
     vscodeApi.postMessage({ type: "selectModel", modelId });
@@ -213,6 +265,32 @@ export function App() {
     vscodeApi.postMessage({ type: "setMode", mode: newMode });
   }, []);
 
+  const handleNewChat = useCallback(() => {
+    setMessages([]);
+    setActiveChatId(null);
+    setIsLoading(false);
+    streamBufferRef.current = "";
+    vscodeApi.postMessage({ type: "newChat" });
+    setShowHistory(false);
+  }, []);
+
+  const handleShowHistory = useCallback(() => {
+    vscodeApi.postMessage({ type: "listChats" });
+    setShowHistory((prev) => !prev);
+  }, []);
+
+  const handleLoadChat = useCallback((chatId: string) => {
+    vscodeApi.postMessage({ type: "loadChat", chatId });
+  }, []);
+
+  const handleDeleteChat = useCallback((chatId: string) => {
+    vscodeApi.postMessage({ type: "deleteChat", chatId });
+    setChatHistory((prev) => prev.filter((c) => c.id !== chatId));
+    if (activeChatId === chatId) {
+      handleNewChat();
+    }
+  }, [activeChatId, handleNewChat]);
+
   return (
     <VscodeContext.Provider value={{ postMessage: vscodeApi.postMessage }}>
       <div className="sidebar-container">
@@ -222,15 +300,70 @@ export function App() {
             <span className="sidebar-subtitle">{MODE_LABELS[mode]}</span>
           </div>
           <div className="sidebar-actions" aria-label="Sidebar actions">
-            <button type="button" className="sidebar-action" title="History">↺</button>
-            <button type="button" className="sidebar-action" title="Search">⌕</button>
-            <button type="button" className="sidebar-action" title="Edit">✎</button>
+            <button
+              type="button"
+              className={`sidebar-action${showHistory ? " sidebar-action--active" : ""}`}
+              title="Chat history"
+              onClick={handleShowHistory}
+            >
+              ↺
+            </button>
+            <button
+              type="button"
+              className="sidebar-action"
+              title="New chat"
+              onClick={handleNewChat}
+            >
+              ✎
+            </button>
           </div>
         </header>
 
-        <Chat messages={messages} isLoading={isLoading} />
+        {showHistory ? (
+          <div className="chat-history">
+            <div className="chat-history-header">
+              <span className="chat-history-title">Chat History</span>
+            </div>
+            {chatHistory.length === 0 ? (
+              <div className="chat-history-empty">No previous chats</div>
+            ) : (
+              <div className="chat-history-list">
+                {chatHistory.map((chat) => (
+                  <button
+                    key={chat.id}
+                    type="button"
+                    className={`chat-history-item${chat.id === activeChatId ? " chat-history-item--active" : ""}`}
+                    onClick={() => handleLoadChat(chat.id)}
+                  >
+                    <div className="chat-history-item-title">{chat.title}</div>
+                    <div className="chat-history-item-meta">
+                      <span className="chat-history-item-mode">{chat.mode}</span>
+                      <span className="chat-history-item-count">{chat.messageCount} msgs</span>
+                      <span className="chat-history-item-date">
+                        {new Date(chat.updatedAt).toLocaleDateString()}
+                      </span>
+                      <button
+                        type="button"
+                        className="chat-history-item-delete"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteChat(chat.id); }}
+                        title="Delete chat"
+                        aria-label="Delete chat"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <Chat messages={messages} isLoading={isLoading} />
+        )}
+
         <ChatInput
           onSend={sendMessage}
+          onInterrupt={handleInterrupt}
           isLoading={isLoading}
           models={models}
           selectedModel={selectedModel}
