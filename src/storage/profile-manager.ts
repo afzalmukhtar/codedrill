@@ -107,6 +107,7 @@ export class ProfileManager {
     existingProfile: string | null,
     router: LLMRouter,
     model: string,
+    statsContext?: string,
   ): Promise<string> {
     const template = await loadPromptTemplate(
       this._extensionUri,
@@ -117,12 +118,16 @@ export class ProfileManager {
       .map((m) => `[${m.role}]: ${m.content}`)
       .join("\n\n");
 
+    const enrichedMessages = statsContext
+      ? `${formattedMessages}\n\n[system context]: ${statsContext}`
+      : formattedMessages;
+
     const today = new Date().toISOString().slice(0, 10);
 
     const finalPrompt = buildPrompt(template, {
       date: today,
       existingProfile: existingProfile ?? "No existing profile yet.",
-      recentMessages: formattedMessages,
+      recentMessages: enrichedMessages,
     });
 
     let fullContent = "";

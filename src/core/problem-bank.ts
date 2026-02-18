@@ -13,12 +13,17 @@ export interface ProblemEntry {
   title: string;
   difficulty: "Easy" | "Medium" | "Hard";
   category: string;
+  pattern?: string;
+  companies?: string[];
+  leetcodeId?: number | null;
+  sources?: string[];
 }
 
 interface BundledList {
   name: string;
   description: string;
   source: string;
+  totalProblems?: number;
   problems: ProblemEntry[];
 }
 
@@ -49,17 +54,31 @@ export class ProblemBank {
    * Only stores metadata -- full descriptions are fetched on demand.
    */
   async initialize(): Promise<number> {
-    const listFiles = ["neetcode150.json", "blind75.json"];
-    let totalImported = 0;
+    // Prefer the unified codedrill.json; fall back to individual lists
+    const unifiedExists = await this._fileExists("codedrill.json");
+    const listFiles = unifiedExists
+      ? ["codedrill.json"]
+      : ["neetcode150.json", "blind75.json", "grind75.json"];
 
+    let totalImported = 0;
     for (const file of listFiles) {
       const count = await this.importFromList(file);
       totalImported += count;
     }
 
     const total = this._repository.getProblemCount();
-    console.log(`[ProblemBank] Initialized with ${total} problems (${totalImported} newly imported)`);
+    console.log(`[ProblemBank] Initialized with ${total} problems (${totalImported} newly imported) from ${listFiles.join(", ")}`);
     return totalImported;
+  }
+
+  private async _fileExists(filename: string): Promise<boolean> {
+    try {
+      const uri = vscode.Uri.joinPath(this._extensionUri, "dist", "lists", filename);
+      await vscode.workspace.fs.stat(uri);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -67,7 +86,7 @@ export class ProblemBank {
    */
   async importFromList(filename: string): Promise<number> {
     const listUri = vscode.Uri.joinPath(
-      this._extensionUri, "src", "leetcode", "lists", filename,
+      this._extensionUri, "dist", "lists", filename,
     );
 
     let list: BundledList;
@@ -85,9 +104,25 @@ export class ProblemBank {
     for (const entry of list.problems) {
       const existing = this._repository.getProblemBySlug(entry.slug);
       if (existing) {
-        // Backfill pattern for problems imported before Sprint 7
-        if (!existing.pattern && entry.category) {
-          await this._repository.updateProblem(entry.slug, { pattern: entry.category });
+        // Backfill pattern, companies, and leetcodeId for existing records
+        const updates: Partial<Problem> = {};
+        if (!existing.pattern && (entry.pattern || entry.category)) {
+          updates.pattern = entry.pattern || entry.category;
+        }
+        if (entry.companies?.length && (!existing.companies || existing.companies.length === 0)) {
+          updates.companies = entry.companies;
+        } else if (entry.companies?.length && existing.companies?.length) {
+          // Merge company lists
+          const merged = Array.from(new Set([...existing.companies, ...entry.companies])).sort();
+          if (merged.length > existing.companies.length) {
+            updates.companies = merged;
+          }
+        }
+        if (!existing.leetcodeId && entry.leetcodeId) {
+          updates.leetcodeId = entry.leetcodeId;
+        }
+        if (Object.keys(updates).length > 0) {
+          await this._repository.updateProblem(entry.slug, updates);
         }
         continue;
       }
@@ -104,9 +139,10 @@ export class ProblemBank {
         testCases: [],
         hints: [],
         solutionCode: null,
-        sourceList: listName,
-        leetcodeId: null,
-        pattern: entry.category,
+        sourceList: entry.sources?.join(",") || listName,
+        leetcodeId: entry.leetcodeId ?? null,
+        pattern: entry.pattern || entry.category,
+        companies: entry.companies ?? [],
       });
       imported++;
     }

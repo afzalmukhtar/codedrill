@@ -167,6 +167,78 @@ export class ChatStorage {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
+  /**
+   * Search through all chat sessions.
+   * Matches against title and message content (case-insensitive).
+   * Returns results sorted by updatedAt descending.
+   */
+  async searchChats(query: string): Promise<ChatSummary[]> {
+    const q = query.trim().toLowerCase();
+    if (!q) { return []; }
+
+    const all = await this.listChats();
+    const titleMatches = all.filter((s) => s.title.toLowerCase().includes(q));
+    const titleMatchIds = new Set(titleMatches.map((s) => s.id));
+
+    const remaining = all.filter((s) => !titleMatchIds.has(s.id));
+    const contentMatches: ChatSummary[] = [];
+
+    for (const summary of remaining) {
+      const session = await this.loadChat(summary.id);
+      if (!session) { continue; }
+      const hasMatch = session.messages.some((m) =>
+        m.content.toLowerCase().includes(q),
+      );
+      if (hasMatch) {
+        contentMatches.push(summary);
+      }
+    }
+
+    const combined = [...titleMatches, ...contentMatches];
+    const byId = new Map<string, ChatSummary>();
+    for (const s of combined) {
+      byId.set(s.id, s);
+    }
+    const deduped = Array.from(byId.values());
+    deduped.sort((a, b) => b.updatedAt - a.updatedAt);
+    return deduped;
+  }
+
+  /**
+   * Export a chat session as JSON or Markdown.
+   */
+  async exportChat(id: string, format: "markdown" | "json"): Promise<string | null> {
+    const session = await this.loadChat(id);
+    if (!session) { return null; }
+
+    if (format === "json") {
+      return JSON.stringify(session, null, 2);
+    }
+
+    const created = new Date(session.createdAt).toLocaleString();
+    const updated = new Date(session.updatedAt).toLocaleString();
+
+    const lines: string[] = [
+      `# ${session.title}`,
+      "",
+      `**Mode:** ${session.mode} | **Model:** ${session.model}`,
+      `**Created:** ${created} | **Updated:** ${updated}`,
+      "",
+      "---",
+      "",
+    ];
+
+    for (const msg of session.messages) {
+      const role = msg.role === "user" ? "User" : "Assistant";
+      lines.push(`## ${role}`);
+      lines.push("");
+      lines.push(msg.content);
+      lines.push("");
+    }
+
+    return lines.join("\n");
+  }
+
   private _getRoot(): vscode.Uri | undefined {
     if (this._workspaceUri) { return this._workspaceUri; }
     const folders = vscode.workspace.workspaceFolders;

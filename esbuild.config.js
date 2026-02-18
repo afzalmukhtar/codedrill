@@ -62,15 +62,50 @@ const webviewConfig = {
   },
 };
 
-function copySqlWasm() {
-  const src = path.join(__dirname, "node_modules", "sql.js", "dist", "sql-wasm.wasm");
-  const dest = path.join(__dirname, "dist", "sql-wasm.wasm");
-  if (fs.existsSync(src)) {
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
-    console.log("[esbuild] Copied sql-wasm.wasm to dist/");
+function copyRuntimeAssets() {
+  const dist = path.join(__dirname, "dist");
+  fs.mkdirSync(dist, { recursive: true });
+
+  // sql-wasm.wasm
+  const wasmSrc = path.join(__dirname, "node_modules", "sql.js", "dist", "sql-wasm.wasm");
+  if (fs.existsSync(wasmSrc)) {
+    fs.copyFileSync(wasmSrc, path.join(dist, "sql-wasm.wasm"));
+    console.log("[esbuild] Copied sql-wasm.wasm");
   } else {
     console.warn("[esbuild] sql-wasm.wasm not found in node_modules/sql.js/dist/");
+  }
+
+  // schema.sql
+  const schemaSrc = path.join(__dirname, "src", "db", "schema.sql");
+  if (fs.existsSync(schemaSrc)) {
+    fs.copyFileSync(schemaSrc, path.join(dist, "schema.sql"));
+    console.log("[esbuild] Copied schema.sql");
+  }
+
+  // Problem list JSON files
+  const listsDir = path.join(__dirname, "src", "leetcode", "lists");
+  const distLists = path.join(dist, "lists");
+  fs.mkdirSync(distLists, { recursive: true });
+  if (fs.existsSync(listsDir)) {
+    for (const file of fs.readdirSync(listsDir)) {
+      if (file.endsWith(".json")) {
+        fs.copyFileSync(path.join(listsDir, file), path.join(distLists, file));
+      }
+    }
+    console.log("[esbuild] Copied problem list JSON files");
+  }
+
+  // Persona prompt templates
+  const promptsDir = path.join(__dirname, "src", "ai", "personas", "prompts");
+  const distPrompts = path.join(dist, "prompts");
+  fs.mkdirSync(distPrompts, { recursive: true });
+  if (fs.existsSync(promptsDir)) {
+    for (const file of fs.readdirSync(promptsDir)) {
+      if (file.endsWith(".md")) {
+        fs.copyFileSync(path.join(promptsDir, file), path.join(distPrompts, file));
+      }
+    }
+    console.log("[esbuild] Copied persona prompt templates");
   }
 }
 
@@ -83,13 +118,13 @@ async function main() {
       const ctx = await esbuild.context(config);
       await ctx.watch();
     }
-    copySqlWasm();
+    copyRuntimeAssets();
     console.log("[watch] Watching for changes...");
   } else {
     for (const config of configs) {
       await esbuild.build(config);
     }
-    copySqlWasm();
+    copyRuntimeAssets();
     console.log("[esbuild] Build complete.");
   }
 }

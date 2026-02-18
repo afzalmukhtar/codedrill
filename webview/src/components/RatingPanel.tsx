@@ -42,6 +42,7 @@ export function RatingPanel({ onRated, gaveUp }: RatingPanelProps) {
             className={`rating-btn rating-btn--${r.value}`}
             onClick={() => handleRate(r.value)}
             title={r.desc}
+            aria-label={`Rate ${r.label}: ${r.desc}`}
           >
             <span className="rating-btn-label">{r.label}</span>
             <span className="rating-btn-desc">{r.desc}</span>

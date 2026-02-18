@@ -14,6 +14,12 @@ interface PatternStat {
   solved: number;
 }
 
+interface CompanyStat {
+  company: string;
+  total: number;
+  solved: number;
+}
+
 interface DueReview {
   title: string;
   difficulty: string;
@@ -28,6 +34,7 @@ export interface DashboardData {
   dueCount: number;
   categoryStats: CategoryStat[];
   patternStats: PatternStat[];
+  companyStats: CompanyStat[];
   dueReviews: DueReview[];
 }
 
@@ -128,6 +135,26 @@ export function Dashboard({ onClose }: DashboardProps) {
                 </div>
                 <div className="dashboard-bar">
                   <div className="dashboard-bar-fill dashboard-bar-fill--pattern" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {data.companyStats && data.companyStats.length > 0 && (
+        <div className="dashboard-section">
+          <div className="dashboard-section-title">Company Coverage (Top 20)</div>
+          {data.companyStats.map((cs) => {
+            const pct = cs.total > 0 ? Math.round((cs.solved / cs.total) * 100) : 0;
+            return (
+              <div key={cs.company} className="dashboard-cat">
+                <div className="dashboard-cat-header">
+                  <span className="dashboard-cat-name">{cs.company}</span>
+                  <span className="dashboard-cat-count">{cs.solved}/{cs.total}</span>
+                </div>
+                <div className="dashboard-bar">
+                  <div className="dashboard-bar-fill dashboard-bar-fill--company" style={{ width: `${pct}%` }} />
                 </div>
               </div>
             );

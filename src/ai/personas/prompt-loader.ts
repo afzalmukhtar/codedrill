@@ -26,6 +26,8 @@ export interface PromptContext {
   userCode?: string;
   timeSpent?: string;
   gaveUp?: string;
+  problemPattern?: string;
+  problemCompanies?: string;
 }
 
 const templateCache = new Map<string, string>();
@@ -53,6 +55,8 @@ const TEMPLATE_VARIABLES: Record<keyof PromptContext, string> = {
   userCode: "USER_CODE",
   timeSpent: "TIME_SPENT",
   gaveUp: "GAVE_UP",
+  problemPattern: "PROBLEM_PATTERN",
+  problemCompanies: "PROBLEM_COMPANIES",
 };
 
 /**
@@ -64,7 +68,7 @@ export function clearTemplateCache(): void {
 }
 
 /**
- * Read a markdown prompt template from src/ai/personas/prompts and cache it.
+ * Read a markdown prompt template from dist/prompts and cache it.
  */
 export async function loadPromptTemplate(
   extensionUri: vscode.Uri,
@@ -76,7 +80,7 @@ export async function loadPromptTemplate(
     return cached;
   }
 
-  const uri = vscode.Uri.joinPath(extensionUri, "src", "ai", "personas", "prompts", filename);
+  const uri = vscode.Uri.joinPath(extensionUri, "dist", "prompts", filename);
   const bytes = await vscode.workspace.fs.readFile(uri);
   const template = new TextDecoder("utf-8").decode(bytes);
 

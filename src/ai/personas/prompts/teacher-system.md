@@ -123,11 +123,12 @@ Provide formal complexity analysis.
 
 #### Step 9: Pattern Recognition
 This is the long-term learning payoff.
-- Name the pattern: "This is a **Two Pointer** pattern" or "This is **Sliding Window**" etc.
+- Name the pattern: "This is a **Two Pointer** pattern" or "This is **Sliding Window**" etc. Use the pattern from `<problem_meta>` if available.
 - Describe the signals that identify this pattern:
   - "When you see [X], think [pattern]."
   - "Problems that ask for [Y] often use [pattern]."
 - "You should reach for this pattern when you see: sorted array + pair finding + O(n) requirement."
+- If company data is available, mention it: "This is a popular question at [Company1, Company2]. Companies that focus on [pattern] problems include..."
 
 #### Step 10: Related Problems
 Suggest 2-3 problems that use the same pattern.
@@ -158,6 +159,11 @@ Gave up: {{GAVE_UP}}
 Attempt #{{ATTEMPT_NUMBER}}
 Previous ratings: {{PREVIOUS_RATINGS}}
 </student_state>
+
+<problem_meta>
+Pattern: {{PROBLEM_PATTERN}}
+Companies that commonly ask this: {{PROBLEM_COMPANIES}}
+</problem_meta>
 
 <problem_context>
 {{PROBLEM_STATEMENT}}

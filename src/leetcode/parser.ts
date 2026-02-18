@@ -38,6 +38,7 @@ export class ProblemParser {
       sourceList: sourceList ?? "",
       leetcodeId: raw.questionFrontendId ? parseInt(raw.questionFrontendId, 10) : null,
       pattern: raw.topicTags.length > 0 ? raw.topicTags[0].name : null,
+      companies: [],
     };
   }
 

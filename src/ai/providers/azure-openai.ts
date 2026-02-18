@@ -94,6 +94,7 @@ export class AzureOpenAIProvider implements LLMProvider {
       let completionTokens = 0;
 
       for await (const chunk of stream) {
+        if (request.signal?.aborted) { break; }
         const delta = chunk.choices?.[0]?.delta;
 
         if (delta?.content) {

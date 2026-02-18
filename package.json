@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "publisher": "afzalmukhtar",
   "license": "MIT",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/afzalmukhtar/codedrill"
@@ -73,6 +74,18 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "codedrill.startSession",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p"
+      },
+      {
+        "command": "codedrill.showDashboard",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d"
+      }
+    ],
     "configuration": {
       "title": "CodeDrill",
       "properties": {
@@ -95,28 +108,28 @@
     "package": "vsce package"
   },
   "dependencies": {
-    "ts-fsrs": "^4.0.0",
-    "sql.js": "^1.0.0",
+    "@openrouter/sdk": "^0.8.0",
+    "highlight.js": "^11.0.0",
     "leetcode-query": "^2.0.1",
     "marked": "^15.0.0",
-    "highlight.js": "^11.0.0",
-    "@openrouter/sdk": "^0.0.14",
     "ollama": "^0.5.0",
-    "openai": "^4.0.0"
+    "openai": "^4.0.0",
+    "sql.js": "^1.0.0",
+    "ts-fsrs": "^4.0.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.96.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vscode/test-electron": "^2.0.0",
+    "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.24.0",
+    "eslint": "^9.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "vitest": "^3.0.0",
-    "@vscode/test-electron": "^2.0.0",
-    "@vscode/vsce": "^3.0.0",
-    "eslint": "^9.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }

@@ -66,7 +66,7 @@ export class Repository {
 
   private async _runSchema(extensionUri: vscode.Uri): Promise<void> {
     if (!this._db) { return; }
-    const schemaUri = vscode.Uri.joinPath(extensionUri, "src", "db", "schema.sql");
+    const schemaUri = vscode.Uri.joinPath(extensionUri, "dist", "schema.sql");
     const bytes = await vscode.workspace.fs.readFile(schemaUri);
     const sql = Buffer.from(bytes).toString("utf-8");
     this._db.run(sql);
@@ -84,6 +84,17 @@ export class Repository {
         console.log("[Repository] Migration: added pattern column to problems");
       } catch (e) {
         console.warn("[Repository] Migration pattern column failed (may already exist):", e);
+      }
+    }
+    // Add companies column if missing (for databases created before Sprint 9)
+    try {
+      this._db.exec("SELECT companies FROM problems LIMIT 1");
+    } catch {
+      try {
+        this._db.run("ALTER TABLE problems ADD COLUMN companies TEXT DEFAULT '[]'");
+        console.log("[Repository] Migration: added companies column to problems");
+      } catch (e) {
+        console.warn("[Repository] Migration companies column failed (may already exist):", e);
       }
     }
   }
@@ -113,8 +124,8 @@ export class Repository {
   async insertProblem(p: Omit<Problem, "id" | "fetchedAt">): Promise<number> {
     this.db.run(
       `INSERT OR IGNORE INTO problems
-        (slug, title, difficulty, category, tags, description, examples, constraints, test_cases, hints, solution_code, source_list, leetcode_id, pattern)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (slug, title, difficulty, category, tags, description, examples, constraints, test_cases, hints, solution_code, source_list, leetcode_id, pattern, companies)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         p.slug, p.title, p.difficulty, p.category,
         JSON.stringify(p.tags), p.description,
@@ -122,6 +133,7 @@ export class Repository {
         JSON.stringify(p.testCases), JSON.stringify(p.hints),
         p.solutionCode, p.sourceList, p.leetcodeId,
         p.pattern ?? null,
+        JSON.stringify(p.companies ?? []),
       ],
     );
     const result = this.db.exec("SELECT last_insert_rowid() as id");
@@ -142,6 +154,7 @@ export class Repository {
     if (fields.tags !== undefined) { sets.push("tags = ?"); vals.push(JSON.stringify(fields.tags)); }
     if (fields.leetcodeId !== undefined) { sets.push("leetcode_id = ?"); vals.push(fields.leetcodeId); }
     if (fields.pattern !== undefined) { sets.push("pattern = ?"); vals.push(fields.pattern); }
+    if (fields.companies !== undefined) { sets.push("companies = ?"); vals.push(JSON.stringify(fields.companies)); }
     if (sets.length === 0) { return; }
     vals.push(slug);
     this.db.run(`UPDATE problems SET ${sets.join(", ")} WHERE slug = ?`, vals);
@@ -262,6 +275,7 @@ export class Repository {
       sourceList: (obj.source_list as string) || "",
       leetcodeId: (obj.leetcode_id as number) || null,
       pattern: (obj.pattern as string) || null,
+      companies: JSON.parse((obj.companies as string) || "[]"),
       fetchedAt: (obj.fetched_at as string) || "",
     };
   }
@@ -464,6 +478,114 @@ export class Repository {
       }
     }
     return streak;
+  }
+
+  // -------------------------------------------------------
+  // user_config key-value store
+  // -------------------------------------------------------
+
+  getUserConfig(key: string): string | null {
+    const rows = this.db.exec("SELECT value FROM user_config WHERE key = ?", [key]);
+    if (!rows[0]?.values[0]) { return null; }
+    return rows[0].values[0][0] as string;
+  }
+
+  async setUserConfig(key: string, value: string): Promise<void> {
+    this.db.run(
+      "INSERT OR REPLACE INTO user_config (key, value) VALUES (?, ?)",
+      [key, value],
+    );
+    await this.persist();
+  }
+
+  async deleteUserConfig(key: string): Promise<void> {
+    this.db.run("DELETE FROM user_config WHERE key = ?", [key]);
+    await this.persist();
+  }
+
+  /**
+   * Get all distinct company names that appear in any problem.
+   */
+  getCompanies(): string[] {
+    const rows = this.db.exec("SELECT companies FROM problems WHERE companies != '[]'");
+    if (!rows[0]) { return []; }
+    const all = new Set<string>();
+    for (const row of rows[0].values) {
+      const arr: string[] = JSON.parse((row[0] as string) || "[]");
+      for (const c of arr) { all.add(c); }
+    }
+    return Array.from(all).sort();
+  }
+
+  /**
+   * Get company coverage stats: how many problems solved per company.
+   */
+  getCompanyStats(): { company: string; total: number; solved: number }[] {
+    const rows = this.db.exec(`
+      SELECT p.companies, p.id,
+        CASE WHEN EXISTS(SELECT 1 FROM attempts a WHERE a.problem_id = p.id AND a.rating >= 2) THEN 1 ELSE 0 END AS solved
+      FROM problems p
+      WHERE p.companies != '[]'
+    `);
+    if (!rows[0]) { return []; }
+    const stats = new Map<string, { total: number; solved: number }>();
+    for (const row of rows[0].values) {
+      const companies: string[] = JSON.parse((row[0] as string) || "[]");
+      const isSolved = (row[2] as number) === 1;
+      for (const c of companies) {
+        if (!stats.has(c)) { stats.set(c, { total: 0, solved: 0 }); }
+        const s = stats.get(c)!;
+        s.total++;
+        if (isSolved) { s.solved++; }
+      }
+    }
+    return Array.from(stats.entries())
+      .map(([company, s]) => ({ company, ...s }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  /**
+   * List problems with optional filters for category, pattern, and company.
+   */
+  listProblemsFiltered(filters?: {
+    category?: string;
+    pattern?: string;
+    company?: string;
+    difficulty?: string;
+  }): Problem[] {
+    let sql = "SELECT * FROM problems WHERE 1=1";
+    const params: unknown[] = [];
+    if (filters?.category) {
+      sql += " AND category = ?";
+      params.push(filters.category);
+    }
+    if (filters?.pattern) {
+      sql += " AND pattern = ?";
+      params.push(filters.pattern);
+    }
+    if (filters?.difficulty) {
+      sql += " AND difficulty = ?";
+      params.push(filters.difficulty);
+    }
+    if (filters?.company) {
+      sql += " AND companies LIKE ?";
+      params.push(`%"${filters.company}"%`);
+    }
+    sql += " ORDER BY category, title";
+    const rows = this.db.exec(sql, params);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToProblem(rows[0].columns, v));
+  }
+
+  /**
+   * Get distinct patterns from the database.
+   */
+  getPatterns(): string[] {
+    const rows = this.db.exec(
+      "SELECT DISTINCT pattern FROM problems WHERE pattern IS NOT NULL AND pattern != '' AND pattern != 'General' ORDER BY pattern",
+    );
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => v[0] as string);
   }
 
   getCategoryStats(): CategoryStat[] {

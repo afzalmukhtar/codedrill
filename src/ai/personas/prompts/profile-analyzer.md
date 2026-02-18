@@ -52,6 +52,14 @@ Return ONLY the Markdown below. Replace placeholder values with your observation
 - [Behavioral pattern, e.g. "jumps to coding before thinking through approach"]
 - [Another pattern]
 
+## Weak Algorithm Patterns
+- [Pattern family they consistently struggle with, e.g. "Dynamic Programming", "Graph BFS/DFS"]
+- [Another weak pattern]
+
+## Target Companies
+- [Companies the student has mentioned or is focusing on, e.g. "Google", "Amazon"]
+- [If no data, put "Not specified yet"]
+
 ## Interaction Preferences
 - [e.g. "Don't over-explain basic array operations"]
 - [e.g. "Use Python type hints in examples"]

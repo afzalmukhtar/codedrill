@@ -1,0 +1,41 @@
+# Source code (not needed in VSIX -- dist/ contains the bundles)
+src/**
+webview/**
+
+# Config and tooling
+.cursor/**
+.codedrill/**
+.github/**
+.vscode/**
+.eslintrc*
+.prettierrc*
+tsconfig.json
+esbuild.config.js
+vitest.config.*
+package-lock.json
+
+# Dev dependencies
+node_modules/**
+
+# Test artifacts
+test/**
+coverage/**
+**/*.test.ts
+**/*.spec.ts
+
+# Build/dev scripts
+scripts/**
+
+# Documentation (dev-only)
+PRD.md
+BUGS.md
+PLAN.md
+
+# User-specific config (example is included instead)
+codedrill.config.json
+
+# Misc
+.DS_Store
+*.vsix
+**/*.map
+**/.gitkeep

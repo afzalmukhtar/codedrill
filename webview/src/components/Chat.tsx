@@ -31,7 +31,7 @@ export function Chat({ messages, isLoading }: ChatProps) {
   }
 
   return (
-    <div className="chat-container">
+    <div className="chat-container" role="log" aria-live="polite" aria-busy={isLoading}>
       {messages.map((message, index) => (
         <article key={`${message.role}-${message.timestamp}-${index}`} className={`chat-message chat-message--${message.role}`}>
           {message.role === "assistant" && (

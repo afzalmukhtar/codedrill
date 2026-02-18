@@ -144,6 +144,7 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatSummary[]>([]);
+  const [historySearch, setHistorySearch] = useState("");
   const [contextBadges, setContextBadges] = useState<ContextBadge[]>([]);
   const [showRating, setShowRating] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
@@ -303,6 +304,21 @@ function AppContent() {
           setChatHistory(message.chats as ChatSummary[]);
           break;
 
+        case "searchChatsResult":
+          setChatHistory(message.chats as ChatSummary[]);
+          break;
+
+        case "exportChatResult": {
+          const exported = message.content as string | null;
+          if (exported) {
+            navigator.clipboard.writeText(exported).then(
+              () => console.log("[CodeDrill] Chat exported to clipboard"),
+              () => console.warn("[CodeDrill] Failed to copy to clipboard"),
+            );
+          }
+          break;
+        }
+
         case "contextAttached":
           setContextBadges((message.badges as ContextBadge[]) ?? []);
           break;
@@ -359,6 +375,14 @@ function AppContent() {
           if (incoming === "teach" || incoming === "interview") {
             setMode(incoming);
           }
+          break;
+        }
+
+        case "openPanel": {
+          const panel = (message as { panel: string }).panel;
+          setShowDashboard(panel === "dashboard");
+          setShowProblems(panel === "problems");
+          setShowHistory(panel === "history");
           break;
         }
 
@@ -424,9 +448,23 @@ function AppContent() {
 
   const handleShowHistory = useCallback(() => {
     vscodeApi.postMessage({ type: "listChats" });
+    setHistorySearch("");
     setShowHistory((prev) => !prev);
     setShowProblems(false);
     setShowDashboard(false);
+  }, []);
+
+  const handleHistorySearch = useCallback((query: string) => {
+    setHistorySearch(query);
+    if (query.trim()) {
+      vscodeApi.postMessage({ type: "searchChats", query });
+    } else {
+      vscodeApi.postMessage({ type: "listChats" });
+    }
+  }, []);
+
+  const handleExportChat = useCallback((chatId: string, format: "markdown" | "json") => {
+    vscodeApi.postMessage({ type: "exportChat", chatId, format });
   }, []);
 
   const handleLoadChat = useCallback((chatId: string) => {
@@ -451,6 +489,7 @@ function AppContent() {
   }, []);
 
   const handleCancelSession = useCallback(() => {
+    vscodeApi.postMessage({ type: "cancelSession" });
     setSessionLoading(false);
     setSessionProgress(null);
     setSessionStreamContent("");
@@ -566,9 +605,19 @@ function AppContent() {
           <div className="chat-history">
             <div className="chat-history-header">
               <span className="chat-history-title">Chat History</span>
+              <input
+                type="text"
+                className="chat-history-search"
+                placeholder="Search chats..."
+                value={historySearch}
+                onChange={(e) => handleHistorySearch(e.target.value)}
+                aria-label="Search chat history"
+              />
             </div>
             {chatHistory.length === 0 ? (
-              <div className="chat-history-empty">No previous chats</div>
+              <div className="chat-history-empty">
+                {historySearch ? "No matching chats" : "No previous chats"}
+              </div>
             ) : (
               <div className="chat-history-list">
                 {chatHistory.map((chat) => (
@@ -585,6 +634,15 @@ function AppContent() {
                       <span className="chat-history-item-date">
                         {new Date(chat.updatedAt).toLocaleDateString()}
                       </span>
+                      <button
+                        type="button"
+                        className="chat-history-item-export"
+                        onClick={(e) => { e.stopPropagation(); handleExportChat(chat.id, "markdown"); }}
+                        title="Export as Markdown"
+                        aria-label="Export chat as Markdown"
+                      >
+                        &#x2913;
+                      </button>
                       <button
                         type="button"
                         className="chat-history-item-delete"

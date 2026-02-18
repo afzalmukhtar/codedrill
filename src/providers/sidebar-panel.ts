@@ -162,88 +162,171 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // Message handler
   // ================================================================
 
+  private _str(val: unknown): string | undefined {
+    return typeof val === "string" ? val : undefined;
+  }
+  private _num(val: unknown): number | undefined {
+    return typeof val === "number" ? val : undefined;
+  }
+  private _bool(val: unknown): boolean | undefined {
+    return typeof val === "boolean" ? val : undefined;
+  }
+
   private async _handleMessage(message: { type: string; [key: string]: unknown }): Promise<void> {
-    switch (message.type) {
-      case "ready":
-        await this._onReady();
-        break;
+    try {
+      switch (message.type) {
+        case "ready":
+          await this._onReady();
+          break;
 
-      case "sendMessage":
-        await this._onSendMessage(message.text as string);
-        break;
+        case "sendMessage": {
+          const text = this._str(message.text);
+          if (!text) { return; }
+          await this._onSendMessage(text);
+          break;
+        }
 
-      case "interrupt":
-        this._onInterrupt();
-        break;
+        case "interrupt":
+          this._onInterrupt();
+          break;
 
-      case "selectModel":
-        this._selectedModel = message.modelId as string;
-        break;
+        case "selectModel": {
+          const modelId = this._str(message.modelId);
+          if (modelId) { this._selectedModel = modelId; }
+          break;
+        }
 
-      case "setMode": {
-        const incoming = (message.mode as string) || "interview";
-        this._mode = (incoming === "teach" || incoming === "interview") ? incoming : "interview";
-        break;
+        case "setMode": {
+          const incoming = this._str(message.mode) || "interview";
+          this._mode = (incoming === "teach" || incoming === "interview") ? incoming : "interview";
+          break;
+        }
+
+        case "newChat":
+          this._onNewChat();
+          break;
+
+        case "listChats":
+          await this._onListChats();
+          break;
+
+        case "loadChat": {
+          const chatId = this._str(message.chatId);
+          if (chatId) { await this._onLoadChat(chatId); }
+          break;
+        }
+
+        case "deleteChat": {
+          const chatId = this._str(message.chatId);
+          if (chatId) { await this._onDeleteChat(chatId); }
+          break;
+        }
+
+        case "searchChats": {
+          const query = this._str(message.query);
+          const results = query !== undefined
+            ? await this._chatStorage.searchChats(query)
+            : [];
+          this.postMessage({ type: "searchChatsResult", chats: results });
+          break;
+        }
+
+        case "exportChat": {
+          const chatId = this._str(message.chatId);
+          const format = this._str(message.format);
+          if (chatId && (format === "markdown" || format === "json")) {
+            const exported = await this._chatStorage.exportChat(chatId, format);
+            this.postMessage({
+              type: "exportChatResult",
+              chatId,
+              format,
+              content: exported,
+            });
+          } else {
+            this.postMessage({
+              type: "exportChatResult",
+              chatId: chatId ?? "",
+              format: format ?? "json",
+              content: null,
+            });
+          }
+          break;
+        }
+
+        case "startSession":
+          await this._onStartSession();
+          break;
+
+        case "cancelSession":
+          this._onCancelSession();
+          break;
+
+        case "timerAction": {
+          const action = this._str(message.action);
+          if (action) { this._onTimerAction(action, this._num(message.durationMs)); }
+          break;
+        }
+
+        case "rateAttempt": {
+          const rating = this._num(message.rating);
+          if (rating && rating >= 1 && rating <= 4) {
+            await this._onRateAttempt(rating as 1 | 2 | 3 | 4, this._bool(message.gaveUp));
+          }
+          break;
+        }
+
+        case "configureProviders":
+          await this._onConfigureProviders();
+          break;
+
+        case "listProblems":
+          this._onListProblems(this._str(message.category));
+          break;
+
+        case "listProblemsFiltered":
+          this._onListProblemsFiltered({
+            category: this._str(message.category),
+            pattern: this._str(message.pattern),
+            company: this._str(message.company),
+            difficulty: this._str(message.difficulty),
+          });
+          break;
+
+        case "getCategories":
+          this._onGetCategories();
+          break;
+
+        case "getCompanies":
+          this._onGetCompanies();
+          break;
+
+        case "getPatterns":
+          this._onGetPatterns();
+          break;
+
+        case "openProblem": {
+          const slug = this._str(message.slug);
+          if (slug) { await this._onOpenProblem(slug); }
+          break;
+        }
+
+        case "viewProblem":
+          this._onViewProblem();
+          break;
+
+        case "giveUp":
+          this._onGiveUp();
+          break;
+
+        case "getDashboard":
+          this._onGetDashboard();
+          break;
+
+        default:
+          break;
       }
-
-      case "newChat":
-        this._onNewChat();
-        break;
-
-      case "listChats":
-        await this._onListChats();
-        break;
-
-      case "loadChat":
-        await this._onLoadChat(message.chatId as string);
-        break;
-
-      case "deleteChat":
-        await this._onDeleteChat(message.chatId as string);
-        break;
-
-      case "startSession":
-        await this._onStartSession();
-        break;
-
-      case "timerAction":
-        this._onTimerAction(message.action as string, message.durationMs as number | undefined);
-        break;
-
-      case "rateAttempt":
-        await this._onRateAttempt(message.rating as 1 | 2 | 3 | 4, message.gaveUp as boolean | undefined);
-        break;
-
-      case "configureProviders":
-        await this._onConfigureProviders();
-        break;
-
-      case "listProblems":
-        this._onListProblems(message.category as string | undefined);
-        break;
-
-      case "getCategories":
-        this._onGetCategories();
-        break;
-
-      case "openProblem":
-        await this._onOpenProblem(message.slug as string);
-        break;
-
-      case "viewProblem":
-        this._onViewProblem();
-        break;
-
-      case "giveUp":
-        this._onGiveUp();
-        break;
-
-      case "getDashboard":
-        this._onGetDashboard();
-        break;
-
-      default:
-        break;
+    } catch (err) {
+      console.error(`[SidebarPanel] Error handling message "${message.type}":`, err);
     }
   }
 
@@ -552,6 +635,25 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private _triggerProfileUpdate(): void {
     const recent = this._conversationHistory.slice(-20);
+
+    // Build stats context for the profile analyzer
+    let statsContext: string | undefined;
+    if (this._repository) {
+      const patternStats = this._repository.getPatternStats();
+      const weakPatterns = patternStats
+        .filter((ps) => ps.total > 0 && (ps.solved / ps.total) < 0.3)
+        .map((ps) => `${ps.pattern} (${ps.solved}/${ps.total} solved)`)
+        .slice(0, 5);
+
+      const parts: string[] = [];
+      if (weakPatterns.length > 0) {
+        parts.push(`Weak patterns: ${weakPatterns.join(", ")}`);
+      }
+      if (parts.length > 0) {
+        statsContext = parts.join(". ");
+      }
+    }
+
     this._profileManager
       .loadProfile()
       .then((existing) =>
@@ -560,6 +662,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           existing,
           this._router,
           this._selectedModel,
+          statsContext,
         ),
       )
       .then((profile) => {
@@ -656,6 +759,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       userCode = editor.document.getText();
     }
 
+    // Look up pattern & companies for the active problem
+    let problemPattern: string | undefined;
+    let problemCompanies: string | undefined;
+    if (this._activeProblem?.problemId && this._repository) {
+      const prob = this._repository.getProblemById(this._activeProblem.problemId);
+      if (prob) {
+        if (prob.pattern) { problemPattern = prob.pattern; }
+        if (prob.companies?.length) {
+          problemCompanies = prob.companies.slice(0, 15).join(", ");
+        }
+      }
+    }
+
     return {
       userProfile: userProfile || undefined,
       filePath: fileAttachment?.metadata?.filePath,
@@ -672,6 +788,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       userCode,
       timeSpent: this._sessionTimeSpent || undefined,
       gaveUp: this._gaveUp ? "true" : undefined,
+      problemPattern,
+      problemCompanies,
     };
   }
 
@@ -681,6 +799,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private async _onStartSession(): Promise<void> {
     await vscode.commands.executeCommand("codedrill.startSession");
+  }
+
+  private _onCancelSession(): void {
+    const { cancelSessionGeneration } = require("../extension");
+    cancelSessionGeneration();
   }
 
   /**
@@ -988,6 +1111,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         difficulty: p.difficulty,
         category: p.category,
         pattern: p.pattern ?? null,
+        companies: p.companies ?? [],
         hasDescription: !!p.description,
         attemptCount: this._repository!.getAttemptCount(p.id),
       })),
@@ -996,9 +1120,44 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private _onGetCategories(): void {
     if (!this._repository) { return; }
-
     const categories = this._repository.getCategories();
     this.postMessage({ type: "categoryList", categories });
+  }
+
+  private _onGetCompanies(): void {
+    if (!this._repository) { return; }
+    const companies = this._repository.getCompanies();
+    this.postMessage({ type: "companyList", companies });
+  }
+
+  private _onGetPatterns(): void {
+    if (!this._repository) { return; }
+    const patterns = this._repository.getPatterns();
+    this.postMessage({ type: "patternList", patterns });
+  }
+
+  private _onListProblemsFiltered(filters: {
+    category?: string;
+    pattern?: string;
+    company?: string;
+    difficulty?: string;
+  }): void {
+    if (!this._repository) { return; }
+    const problems = this._repository.listProblemsFiltered(filters);
+    this.postMessage({
+      type: "problemList",
+      problems: problems.map((p) => ({
+        id: p.id,
+        slug: p.slug,
+        title: p.title,
+        difficulty: p.difficulty,
+        category: p.category,
+        pattern: p.pattern ?? null,
+        companies: p.companies ?? [],
+        hasDescription: !!p.description,
+        attemptCount: this._repository!.getAttemptCount(p.id),
+      })),
+    });
   }
 
   private async _onOpenProblem(slug: string): Promise<void> {
@@ -1025,8 +1184,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       const dir = vscode.Uri.joinPath(workspaceUri, ".codedrill", "problems", dateStr);
       try { await vscode.workspace.fs.stat(dir); } catch { await vscode.workspace.fs.createDirectory(dir); }
 
+      const { formatProblemMarkdown } = require("../extension");
+      const markdown = typeof formatProblemMarkdown === "function"
+        ? formatProblemMarkdown(problem)
+        : problem.description;
+
       const fileUri = vscode.Uri.joinPath(dir, `${slug}.md`);
-      await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(problem.description));
+      await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(markdown));
 
       const doc = await vscode.workspace.openTextDocument(fileUri);
       await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
@@ -1082,6 +1246,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const streakDays = this._repository.getStreakDays();
     const categoryStats = this._repository.getCategoryStats();
     const patternStats = this._repository.getPatternStats();
+    const companyStats = this._repository.getCompanyStats();
 
     const dueCards = this._repository.getDueCards(10);
     const dueReviews = dueCards.map((card) => {
@@ -1103,6 +1268,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         dueCount: dueCards.length,
         categoryStats,
         patternStats,
+        companyStats: companyStats.slice(0, 20),
         dueReviews,
       },
     });

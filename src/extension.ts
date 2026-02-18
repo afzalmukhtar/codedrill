@@ -5,11 +5,27 @@ import { LLMRouter } from "./ai/llm-router";
 import { Repository } from "./db/repository";
 import { Scheduler } from "./core/scheduler";
 import { ProblemBank } from "./core/problem-bank";
+import { PrefetchPipeline } from "./core/prefetch-pipeline";
 import { LeetCodeClient } from "./leetcode/client";
 import { ProblemGeneratorPersona } from "./ai/personas/problem-generator";
 import { SessionManager } from "./core/session-manager";
 import { ProblemMutator } from "./core/problem-mutator";
 import { clearTemplateCache } from "./ai/personas/prompt-loader";
+
+/** Module-level cancellation source for the session generation flow. */
+let sessionCancellation: vscode.CancellationTokenSource | null = null;
+
+/** Prefetch pipeline instance for background description fetching. */
+let prefetchPipeline: PrefetchPipeline | null = null;
+
+/** Called by the sidebar when the user clicks Cancel in the webview. */
+export function cancelSessionGeneration(): void {
+  if (sessionCancellation) {
+    sessionCancellation.cancel();
+    sessionCancellation.dispose();
+    sessionCancellation = null;
+  }
+}
 
 /**
  * Extension entry point. Called when the extension is activated.
@@ -37,6 +53,9 @@ export function activate(context: vscode.ExtensionContext): void {
   }).catch((err) => {
     console.error("[CodeDrill] Repository init failed:", err);
   });
+
+  prefetchPipeline = new PrefetchPipeline(problemBank, repository);
+  repoReady.then(() => prefetchPipeline?.start()).catch(() => {});
 
   const scheduler = new Scheduler(repository);
   const sessionManager = new SessionManager(repository, scheduler, problemBank);
@@ -70,6 +89,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("codedrill.startSession", () => {
+      prefetchPipeline?.stop();
       repoReady.then(() => {
         getTodaysProblem(
           configManager,
@@ -119,9 +139,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("codedrill.showDashboard", () => {
-      vscode.window.showInformationMessage(
-        "CodeDrill: Dashboard coming soon!"
-      );
+      vscode.commands.executeCommand("codedrill.sidebar.focus");
+      sidebarProvider.postMessage({ type: "openPanel", panel: "dashboard" });
     })
   );
 
@@ -161,6 +180,9 @@ async function getTodaysProblem(
   sessionManager: SessionManager,
   repository: Repository,
 ): Promise<void> {
+  sessionCancellation = new vscode.CancellationTokenSource();
+  const externalToken = sessionCancellation.token;
+
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -168,6 +190,11 @@ async function getTodaysProblem(
       cancellable: true,
     },
     async (progress, token) => {
+      // Merge the VS Code notification cancel with our external cancel
+      const mergedAborted = () => token.isCancellationRequested || externalToken.isCancellationRequested;
+      externalToken.onCancellationRequested(() => {
+        // Force the progress notification to close by aborting
+      });
       const sendProgress = (step: string, detail?: string, problemPreview?: object) => {
         sidebarProvider.postMessage({
           type: "sessionProgress",
@@ -226,7 +253,7 @@ async function getTodaysProblem(
           return;
         }
 
-        if (token.isCancellationRequested) {
+        if (mergedAborted()) {
           sidebarProvider.postMessage({ type: "sessionError", message: "Cancelled." });
           return;
         }
@@ -271,6 +298,7 @@ async function getTodaysProblem(
 
           const abortController = new AbortController();
           token.onCancellationRequested(() => abortController.abort());
+          externalToken.onCancellationRequested(() => abortController.abort());
 
           const streamChunkToSidebar = (chunk: string) => {
             sidebarProvider.postMessage({ type: "sessionGenerationChunk", content: chunk });
@@ -319,6 +347,7 @@ async function getTodaysProblem(
 
             const abortController = new AbortController();
             token.onCancellationRequested(() => abortController.abort());
+            externalToken.onCancellationRequested(() => abortController.abort());
 
             markdown = await problemGenerator.generateProblem(
               problem,
@@ -331,7 +360,7 @@ async function getTodaysProblem(
           }
         }
 
-        if (token.isCancellationRequested) {
+        if (mergedAborted()) {
           sidebarProvider.postMessage({ type: "sessionError", message: "Cancelled." });
           return;
         }
@@ -431,7 +460,7 @@ async function getTodaysProblem(
  * Format a Problem from the database into a clean Markdown practice file.
  * Uses REAL LeetCode data -- no LLM hallucination.
  */
-function formatProblemMarkdown(problem: import("./db/schema").Problem): string {
+export function formatProblemMarkdown(problem: import("./db/schema").Problem): string {
   const lines: string[] = [];
 
   lines.push(`# ${problem.title}`);
@@ -520,5 +549,7 @@ async function downloadAllProblems(problemBank: ProblemBank): Promise<void> {
  * Called when the extension is deactivated.
  */
 export function deactivate(): void {
+  prefetchPipeline?.stop();
+  prefetchPipeline = null;
   console.log("CodeDrill extension deactivated.");
 }
