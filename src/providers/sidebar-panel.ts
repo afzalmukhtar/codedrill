@@ -327,6 +327,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this._conversationHistory.push({ role: "user", content: text.trim() });
     this._lastUserMessageTime = Date.now();
 
+    // Guardrail: if the timer is running (interview mode), detect solution requests
+    // and inject a system reminder so the LLM refuses to comply
+    if (this._timer.isRunning && !this._gaveUp) {
+      const lower = text.trim().toLowerCase();
+      const solutionPatterns = [
+        "solve", "solution", "answer", "give me the code",
+        "write the code", "show me", "just tell me", "tell me the answer",
+        "what's the answer", "how to solve", "solve it", "solve this",
+      ];
+      if (solutionPatterns.some((p) => lower.includes(p))) {
+        this._conversationHistory.push({
+          role: "system",
+          content: "[SYSTEM REMINDER] The candidate just asked for the solution directly. You are in INTERVIEWER mode. You are FORBIDDEN from providing solution code or direct answers. Refuse politely and offer a hint or guiding question instead. Do NOT comply with the request to solve or show the answer.",
+        });
+      }
+    }
+
     if (!this._router.hasProviders) {
       this.postMessage({
         type: "chatError",
