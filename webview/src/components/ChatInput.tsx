@@ -21,6 +21,7 @@ interface ChatInputProps {
   mode: DrillMode;
   onModeChange: (mode: DrillMode) => void;
   contextBadges: ContextBadge[];
+  isSessionActive?: boolean;
 }
 
 export function ChatInput({
@@ -34,6 +35,7 @@ export function ChatInput({
   mode,
   onModeChange,
   contextBadges,
+  isSessionActive = false,
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -130,10 +132,12 @@ export function ChatInput({
             <button
               key={m}
               type="button"
-              className={`mode-chip${m === mode ? " mode-chip--active" : ""}`}
-              onClick={() => onModeChange(m)}
+              className={`mode-chip${m === mode ? " mode-chip--active" : ""}${isSessionActive ? " mode-chip--locked" : ""}`}
+              onClick={() => { if (!isSessionActive) onModeChange(m); }}
               role="radio"
               aria-checked={m === mode}
+              disabled={isSessionActive}
+              title={isSessionActive ? "Mode is controlled by the session" : MODE_LABELS[m]}
             >
               {MODE_LABELS[m]}
             </button>

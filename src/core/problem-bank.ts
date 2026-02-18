@@ -84,7 +84,13 @@ export class ProblemBank {
 
     for (const entry of list.problems) {
       const existing = this._repository.getProblemBySlug(entry.slug);
-      if (existing) { continue; }
+      if (existing) {
+        // Backfill pattern for problems imported before Sprint 7
+        if (!existing.pattern && entry.category) {
+          await this._repository.updateProblem(entry.slug, { pattern: entry.category });
+        }
+        continue;
+      }
 
       await this._repository.insertProblem({
         slug: entry.slug,
@@ -100,6 +106,7 @@ export class ProblemBank {
         solutionCode: null,
         sourceList: listName,
         leetcodeId: null,
+        pattern: entry.category,
       });
       imported++;
     }

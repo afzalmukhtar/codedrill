@@ -8,6 +8,12 @@ interface CategoryStat {
   solved: number;
 }
 
+interface PatternStat {
+  pattern: string;
+  total: number;
+  solved: number;
+}
+
 interface DueReview {
   title: string;
   difficulty: string;
@@ -21,6 +27,7 @@ export interface DashboardData {
   streakDays: number;
   dueCount: number;
   categoryStats: CategoryStat[];
+  patternStats: PatternStat[];
   dueReviews: DueReview[];
 }
 
@@ -107,6 +114,26 @@ export function Dashboard({ onClose }: DashboardProps) {
           })
         )}
       </div>
+
+      {data.patternStats.length > 0 && (
+        <div className="dashboard-section">
+          <div className="dashboard-section-title">Pattern Mastery</div>
+          {data.patternStats.map((ps) => {
+            const pct = ps.total > 0 ? Math.round((ps.solved / ps.total) * 100) : 0;
+            return (
+              <div key={ps.pattern} className="dashboard-cat">
+                <div className="dashboard-cat-header">
+                  <span className="dashboard-cat-name">{ps.pattern}</span>
+                  <span className="dashboard-cat-count">{ps.solved}/{ps.total}</span>
+                </div>
+                <div className="dashboard-bar">
+                  <div className="dashboard-bar-fill dashboard-bar-fill--pattern" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {data.dueReviews.length > 0 && (
         <div className="dashboard-section">

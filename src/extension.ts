@@ -258,6 +258,7 @@ async function getTodaysProblem(
         const attemptCount = repository.getAttemptCount(problem.id);
         const isMutation = problemMutator.shouldMutate(attemptCount);
         let markdown: string | null = null;
+        let mutationStrategy: string | null = null;
 
         if (isMutation) {
           sendProgress("generating", `Generating mutation for "${problem.title}"...`, {
@@ -271,14 +272,24 @@ async function getTodaysProblem(
           const abortController = new AbortController();
           token.onCancellationRequested(() => abortController.abort());
 
+          const streamChunkToSidebar = (chunk: string) => {
+            sidebarProvider.postMessage({ type: "sessionGenerationChunk", content: chunk });
+          };
+
           const attempts = repository.getAttemptsForProblem(problem.id);
-          markdown = await problemMutator.generateMutation(
+          const mutationResult = await problemMutator.generateMutation(
             problem,
             attempts,
             router,
             model,
             abortController.signal,
+            streamChunkToSidebar,
           );
+
+          if (mutationResult) {
+            markdown = mutationResult.markdown;
+            mutationStrategy = mutationResult.strategy;
+          }
         }
 
         // For non-mutations: use the real LeetCode description
@@ -394,6 +405,8 @@ async function getTodaysProblem(
           problemId: problem.id,
           sessionId: session?.id,
           timerDurationMs: timerMins * 60 * 1000,
+          isMutation,
+          mutationStrategy: mutationStrategy ?? undefined,
         };
         sidebarProvider.setActiveProblem(problemMeta);
         sidebarProvider.postMessage({

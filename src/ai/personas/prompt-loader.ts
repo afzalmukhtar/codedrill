@@ -22,6 +22,10 @@ export interface PromptContext {
   date?: string;
   existingProfile?: string;
   recentMessages?: string;
+  studentAssessment?: string;
+  userCode?: string;
+  timeSpent?: string;
+  gaveUp?: string;
 }
 
 const templateCache = new Map<string, string>();
@@ -45,6 +49,10 @@ const TEMPLATE_VARIABLES: Record<keyof PromptContext, string> = {
   date: "DATE",
   existingProfile: "EXISTING_PROFILE",
   recentMessages: "RECENT_MESSAGES",
+  studentAssessment: "STUDENT_ASSESSMENT",
+  userCode: "USER_CODE",
+  timeSpent: "TIME_SPENT",
+  gaveUp: "GAVE_UP",
 };
 
 /**

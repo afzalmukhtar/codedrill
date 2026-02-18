@@ -70,6 +70,22 @@ export class Repository {
     const bytes = await vscode.workspace.fs.readFile(schemaUri);
     const sql = Buffer.from(bytes).toString("utf-8");
     this._db.run(sql);
+    this._runMigrations();
+  }
+
+  private _runMigrations(): void {
+    if (!this._db) { return; }
+    // Add pattern column if missing (for databases created before Sprint 7)
+    try {
+      this._db.exec("SELECT pattern FROM problems LIMIT 1");
+    } catch {
+      try {
+        this._db.run("ALTER TABLE problems ADD COLUMN pattern TEXT");
+        console.log("[Repository] Migration: added pattern column to problems");
+      } catch (e) {
+        console.warn("[Repository] Migration pattern column failed (may already exist):", e);
+      }
+    }
   }
 
   async persist(): Promise<void> {
@@ -97,14 +113,15 @@ export class Repository {
   async insertProblem(p: Omit<Problem, "id" | "fetchedAt">): Promise<number> {
     this.db.run(
       `INSERT OR IGNORE INTO problems
-        (slug, title, difficulty, category, tags, description, examples, constraints, test_cases, hints, solution_code, source_list, leetcode_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (slug, title, difficulty, category, tags, description, examples, constraints, test_cases, hints, solution_code, source_list, leetcode_id, pattern)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         p.slug, p.title, p.difficulty, p.category,
         JSON.stringify(p.tags), p.description,
         JSON.stringify(p.examples), p.constraints,
         JSON.stringify(p.testCases), JSON.stringify(p.hints),
         p.solutionCode, p.sourceList, p.leetcodeId,
+        p.pattern ?? null,
       ],
     );
     const result = this.db.exec("SELECT last_insert_rowid() as id");
@@ -124,6 +141,7 @@ export class Repository {
     if (fields.solutionCode !== undefined) { sets.push("solution_code = ?"); vals.push(fields.solutionCode); }
     if (fields.tags !== undefined) { sets.push("tags = ?"); vals.push(JSON.stringify(fields.tags)); }
     if (fields.leetcodeId !== undefined) { sets.push("leetcode_id = ?"); vals.push(fields.leetcodeId); }
+    if (fields.pattern !== undefined) { sets.push("pattern = ?"); vals.push(fields.pattern); }
     if (sets.length === 0) { return; }
     vals.push(slug);
     this.db.run(`UPDATE problems SET ${sets.join(", ")} WHERE slug = ?`, vals);
@@ -179,6 +197,27 @@ export class Repository {
     return (rows[0]?.values[0]?.[0] as number) ?? 0;
   }
 
+  getPatternStats(): { pattern: string; total: number; solved: number }[] {
+    const sql = `
+      SELECT
+        p.pattern,
+        COUNT(DISTINCT p.id) AS total,
+        COUNT(DISTINCT a.problem_id) AS solved
+      FROM problems p
+      LEFT JOIN attempts a ON a.problem_id = p.id
+      WHERE p.pattern IS NOT NULL AND p.pattern != ''
+      GROUP BY p.pattern
+      ORDER BY p.pattern
+    `;
+    const rows = this.db.exec(sql);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => ({
+      pattern: v[0] as string,
+      total: v[1] as number,
+      solved: v[2] as number,
+    }));
+  }
+
   /**
    * List all problems, optionally filtered by category.
    * Returns lightweight rows sorted by category then title.
@@ -222,6 +261,7 @@ export class Repository {
       solutionCode: (obj.solution_code as string) || null,
       sourceList: (obj.source_list as string) || "",
       leetcodeId: (obj.leetcode_id as number) || null,
+      pattern: (obj.pattern as string) || null,
       fetchedAt: (obj.fetched_at as string) || "",
     };
   }

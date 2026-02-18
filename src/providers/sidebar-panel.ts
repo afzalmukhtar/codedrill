@@ -52,10 +52,21 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     problemId?: number;
     sessionId?: number;
     timerDurationMs?: number;
+    isMutation?: boolean;
+    mutationStrategy?: string;
   } | null = null;
 
   /** Whether the user gave up on the current problem (switches to teacher). */
   private _gaveUp = false;
+
+  /** Student's self-assessment after giving up / finishing (e.g. "Again", "Hard"). */
+  private _studentAssessment: string | null = null;
+
+  /** How long the student spent before giving up or finishing. */
+  private _sessionTimeSpent: string | null = null;
+
+  /** The user's manually selected mode before a session overrode it. */
+  private _preSessionMode: string = "agent";
 
   /** Countdown timer (lives in extension host, survives webview recreation). */
   private readonly _timer = new Timer();
@@ -110,6 +121,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
     subscriptions.push(
       this._timer.onExpired(() => {
+        this._stopHeartbeat();
+        this._mode = "teach";
+        this.postMessage({ type: "modeOverride", mode: "teach" });
         this.postMessage({ type: "timerExpired" });
       }),
     );
@@ -216,6 +230,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
       case "viewProblem":
         this._onViewProblem();
+        break;
+
+      case "giveUp":
+        this._onGiveUp();
         break;
 
       case "getDashboard":
@@ -612,6 +630,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       timeElapsed = `${String(elapsedMin).padStart(2, "0")}:${String(elapsedSec).padStart(2, "0")}`;
     }
 
+    // Capture the user's code from the active editor for teacher context
+    let userCode: string | undefined;
+    const editor = this._lastActiveEditor ?? vscode.window.activeTextEditor;
+    if (editor && this._gaveUp) {
+      userCode = editor.document.getText();
+    }
+
     return {
       userProfile: userProfile || undefined,
       filePath: fileAttachment?.metadata?.filePath,
@@ -624,6 +649,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       timeRemaining,
       timeElapsed,
       previousRatings: previousRatings || undefined,
+      studentAssessment: this._studentAssessment || undefined,
+      userCode,
+      timeSpent: this._sessionTimeSpent || undefined,
+      gaveUp: this._gaveUp ? "true" : undefined,
     };
   }
 
@@ -648,6 +677,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     problemId?: number;
     sessionId?: number;
     timerDurationMs?: number;
+    isMutation?: boolean;
+    mutationStrategy?: string;
   }): Promise<void> {
     this._activeProblem = problem;
     this._gaveUp = false;
@@ -668,10 +699,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     switch (action) {
       case "start":
         if (durationMs && durationMs > 0) {
+          this._preSessionMode = this._mode;
+          this._mode = "interview";
+          this.postMessage({ type: "modeOverride", mode: "interview" });
           this._timer.start(durationMs);
-          if (this._mode === "interview") {
-            this._startHeartbeat();
-          }
+          this._startHeartbeat();
         }
         break;
       case "pause":
@@ -697,6 +729,30 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         break;
       }
     }
+  }
+
+  // ================================================================
+  // Give up -- immediately switch to teacher mode
+  // ================================================================
+
+  private _onGiveUp(): void {
+    this._gaveUp = true;
+    this._stopHeartbeat();
+
+    if (this._timer.isRunning) {
+      const result = this._timer.stop();
+      const min = Math.floor(result.elapsedMs / 60_000);
+      const sec = Math.floor((result.elapsedMs % 60_000) / 1000);
+      this._sessionTimeSpent = `${min}m ${sec}s`;
+      this.postMessage({
+        type: "timerStopped",
+        elapsedMs: result.elapsedMs,
+        wasExpired: result.wasExpired,
+      });
+    }
+
+    this._mode = "teach";
+    this.postMessage({ type: "modeOverride", mode: "teach" });
   }
 
   // ================================================================
@@ -811,18 +867,25 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    // If user gave up, set the flag so persona router switches to teacher
     if (gaveUp) {
       this._gaveUp = true;
-      this.postMessage({ type: "modeOverride", mode: "teach" });
     }
 
     this._stopHeartbeat();
+
+    const ratingLabels: Record<number, string> = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
+    this._studentAssessment = ratingLabels[rating] ?? String(rating);
 
     // Stop timer and collect elapsed time
     const timerResult = this._timer.isRunning
       ? this._timer.stop()
       : { elapsedMs: 0, wasExpired: false };
+
+    if (!this._sessionTimeSpent && timerResult.elapsedMs > 0) {
+      const min = Math.floor(timerResult.elapsedMs / 60_000);
+      const sec = Math.floor((timerResult.elapsedMs % 60_000) / 1000);
+      this._sessionTimeSpent = `${min}m ${sec}s`;
+    }
 
     try {
       const updatedCard = await this._sessionManager.completeAttempt(
@@ -831,6 +894,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         this._activeProblem?.timerDurationMs ?? 0,
         undefined,
         gaveUp ?? false,
+        this._activeProblem?.isMutation ?? false,
+        this._activeProblem?.mutationStrategy ?? null,
       );
 
       const nextReview = updatedCard?.due
@@ -844,15 +909,47 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         cardState: updatedCard?.state ?? "New",
       });
 
-      // End the session
       await this._sessionManager.endSession();
-      this._activeProblem = null;
-      this._gaveUp = false;
+
+      // If the student gave up or found it hard, auto-trigger the teacher
+      if (gaveUp || rating <= 2) {
+        this._mode = "teach";
+        this.postMessage({ type: "modeOverride", mode: "teach" });
+        this._autoStartTeacher();
+      } else {
+        this._activeProblem = null;
+        this._gaveUp = false;
+        this._studentAssessment = null;
+        this._sessionTimeSpent = null;
+        this._mode = this._preSessionMode;
+        this.postMessage({ type: "modeOverride", mode: this._preSessionMode });
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[SidebarProvider] Rating error:", msg);
       this.postMessage({ type: "chatError", message: `Failed to record rating: ${msg}` });
     }
+  }
+
+  /**
+   * Auto-trigger teacher after give-up / hard rating.
+   * Sends a synthetic user message that primes the teacher with full context.
+   */
+  private _autoStartTeacher(): void {
+    const parts: string[] = [];
+    if (this._activeProblem) {
+      parts.push(`I just ${this._gaveUp ? "gave up on" : "finished"} "${this._activeProblem.title}" (${this._activeProblem.difficulty}).`);
+    }
+    if (this._studentAssessment) {
+      parts.push(`I rated it as: ${this._studentAssessment}.`);
+    }
+    if (this._sessionTimeSpent) {
+      parts.push(`I spent ${this._sessionTimeSpent} on it.`);
+    }
+    parts.push("Please teach me this problem step by step — start by explaining the problem, then the fundamentals, and then review my code.");
+
+    const teacherKickoff = parts.join(" ");
+    this._onSendMessage(teacherKickoff);
   }
 
   // ================================================================
@@ -871,6 +968,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         title: p.title,
         difficulty: p.difficulty,
         category: p.category,
+        pattern: p.pattern ?? null,
         hasDescription: !!p.description,
         attemptCount: this._repository!.getAttemptCount(p.id),
       })),
@@ -953,6 +1051,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           streakDays: 0,
           dueCount: 0,
           categoryStats: [],
+          patternStats: [],
           dueReviews: [],
         },
       });
@@ -963,6 +1062,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const totalProblems = this._repository.getProblemCount();
     const streakDays = this._repository.getStreakDays();
     const categoryStats = this._repository.getCategoryStats();
+    const patternStats = this._repository.getPatternStats();
 
     const dueCards = this._repository.getDueCards(10);
     const dueReviews = dueCards.map((card) => {
@@ -983,6 +1083,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         streakDays,
         dueCount: dueCards.length,
         categoryStats,
+        patternStats,
         dueReviews,
       },
     });

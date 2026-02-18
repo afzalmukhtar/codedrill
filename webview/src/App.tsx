@@ -107,6 +107,7 @@ interface PersistedState {
     difficulty: string;
     category: string;
     timerDurationMs?: number;
+    isMutation?: boolean;
   } | null;
 }
 
@@ -151,6 +152,7 @@ function AppContent() {
     difficulty: string;
     category: string;
     timerDurationMs?: number;
+    isMutation?: boolean;
   } | null>(() => persisted.current?.activeProblem ?? null);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionProgress, setSessionProgress] = useState<SessionProgress | null>(null);
@@ -454,6 +456,7 @@ function AppContent() {
   const handleGiveUp = useCallback(() => {
     setGaveUp(true);
     setShowRating(true);
+    vscodeApi.postMessage({ type: "giveUp" });
   }, []);
 
   return (
@@ -511,6 +514,9 @@ function AppContent() {
 
         {activeProblem && !showRating && (
           <div className="problem-actions">
+            {activeProblem.isMutation && (
+              <span className="mutation-badge">MUTATION</span>
+            )}
             <button
               type="button"
               className="view-problem-btn"
@@ -616,6 +622,7 @@ function AppContent() {
           mode={mode}
           onModeChange={handleModeChange}
           contextBadges={contextBadges}
+          isSessionActive={activeProblem !== null}
         />
       </div>
     </VscodeContext.Provider>

@@ -21,6 +21,7 @@ export interface Problem {
   solutionCode: string | null;
   sourceList: string;
   leetcodeId: number | null;
+  pattern: string | null;
   fetchedAt: string;
 }
 

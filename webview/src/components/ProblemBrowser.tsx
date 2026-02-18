@@ -7,6 +7,7 @@ export interface ProblemSummary {
   title: string;
   difficulty: "Easy" | "Medium" | "Hard";
   category: string;
+  pattern: string | null;
   hasDescription: boolean;
   attemptCount: number;
 }
@@ -119,6 +120,9 @@ export function ProblemBrowser({ onClose }: ProblemBrowserProps) {
                   {p.difficulty[0]}
                 </span>
                 <span className="problem-browser-item-title">{p.title}</span>
+                {p.pattern && (
+                  <span className="problem-browser-pattern">{p.pattern}</span>
+                )}
                 {p.attemptCount > 0 && (
                   <span className="problem-browser-attempts">{p.attemptCount}x</span>
                 )}

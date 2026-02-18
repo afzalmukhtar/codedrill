@@ -59,7 +59,8 @@ export class ProblemMutator {
     router: LLMRouter,
     model: string,
     signal?: AbortSignal,
-  ): Promise<string | null> {
+    onChunk?: (chunk: string) => void,
+  ): Promise<{ markdown: string; strategy: MutationStrategy } | null> {
     const attemptCount = previousAttempts.length;
     const strategy = this.selectStrategy(attemptCount, previousAttempts);
 
@@ -101,6 +102,7 @@ export class ProblemMutator {
 
         if (chunk.type === "content" && chunk.content) {
           chunks.push(chunk.content);
+          onChunk?.(chunk.content);
         } else if (chunk.type === "error") {
           console.error("[ProblemMutator] LLM error:", chunk.error);
           return null;
@@ -112,6 +114,6 @@ export class ProblemMutator {
     }
 
     const result = chunks.join("").trim();
-    return result || null;
+    return result ? { markdown: result, strategy } : null;
   }
 }

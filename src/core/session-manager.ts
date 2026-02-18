@@ -130,6 +130,8 @@ export class SessionManager {
     timerLimitMs: number,
     userCode?: string,
     gaveUp: boolean = false,
+    wasMutation: boolean = false,
+    mutationDesc: string | null = null,
   ): Promise<ReviewCard | null> {
     if (!this._activeSession) { return null; }
 
@@ -140,7 +142,6 @@ export class SessionManager {
 
     if (!problemId || !session.currentCardId) { return null; }
 
-    // Record the attempt
     await this._repository.insertAttempt({
       problemId,
       cardId: session.currentCardId,
@@ -149,8 +150,8 @@ export class SessionManager {
       timeSpentMs,
       timerLimitMs,
       rating,
-      wasMutation: false,
-      mutationDesc: null,
+      wasMutation,
+      mutationDesc,
       userCode: userCode ?? null,
       aiHintsUsed: session.hintsUsed,
       gaveUp,

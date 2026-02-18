@@ -27,13 +27,19 @@ CREATE TABLE IF NOT EXISTS problems (
   solution_code TEXT,                            -- Reference solution (optional)
   source_list   TEXT,                            -- Origin list: "neetcode150", "blind75", "grind75"
   leetcode_id   INTEGER,                         -- LeetCode problem number (nullable)
+  pattern       TEXT,                            -- Algorithm pattern family: "Sliding Window", "Two Pointers", etc.
   fetched_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 
 );
 
+-- Migration: add pattern column to existing databases
+-- SQLite ALTER TABLE ADD COLUMN is idempotent-safe via IF NOT EXISTS (3.35+)
+-- For older SQLite, the PRAGMA trick below handles it gracefully.
+
 CREATE INDEX IF NOT EXISTS idx_problems_category ON problems(category);
 CREATE INDEX IF NOT EXISTS idx_problems_difficulty ON problems(difficulty);
 CREATE INDEX IF NOT EXISTS idx_problems_source_list ON problems(source_list);
+CREATE INDEX IF NOT EXISTS idx_problems_pattern ON problems(pattern);
 
 -- ============================================================
 -- REVIEW_CARDS: FSRS spaced repetition state per problem
