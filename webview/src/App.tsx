@@ -5,6 +5,7 @@ import { Timer } from "./components/Timer";
 import { RatingPanel } from "./components/RatingPanel";
 import { SessionLoader, type SessionProgress } from "./components/SessionLoader";
 import { ProblemBrowser } from "./components/ProblemBrowser";
+import { Dashboard } from "./components/Dashboard";
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -143,6 +144,7 @@ function AppContent() {
   const [showRating, setShowRating] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
   const [showProblems, setShowProblems] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [ratingConfirmation, setRatingConfirmation] = useState<string | null>(null);
   const [activeProblem, setActiveProblem] = useState<{
     title: string;
@@ -417,6 +419,7 @@ function AppContent() {
     vscodeApi.postMessage({ type: "listChats" });
     setShowHistory((prev) => !prev);
     setShowProblems(false);
+    setShowDashboard(false);
   }, []);
 
   const handleLoadChat = useCallback((chatId: string) => {
@@ -464,9 +467,17 @@ function AppContent() {
           <div className="sidebar-actions" aria-label="Sidebar actions">
             <button
               type="button"
+              className={`sidebar-action${showDashboard ? " sidebar-action--active" : ""}`}
+              title="Dashboard"
+              onClick={() => { setShowDashboard((p) => !p); setShowHistory(false); setShowProblems(false); }}
+            >
+              ◈
+            </button>
+            <button
+              type="button"
               className={`sidebar-action${showProblems ? " sidebar-action--active" : ""}`}
               title="Browse problems"
-              onClick={() => { setShowProblems((p) => !p); setShowHistory(false); }}
+              onClick={() => { setShowProblems((p) => !p); setShowHistory(false); setShowDashboard(false); }}
             >
               ☰
             </button>
@@ -489,7 +500,7 @@ function AppContent() {
           </div>
         </header>
 
-        <Timer timerDurationMs={activeProblem?.timerDurationMs} />
+        <Timer timerDurationMs={activeProblem?.timerDurationMs} mode={mode} />
 
         {showRating && (
           <RatingPanel
@@ -499,13 +510,22 @@ function AppContent() {
         )}
 
         {activeProblem && !showRating && (
-          <button
-            type="button"
-            className="give-up-btn"
-            onClick={handleGiveUp}
-          >
-            Give Up
-          </button>
+          <div className="problem-actions">
+            <button
+              type="button"
+              className="view-problem-btn"
+              onClick={() => vscodeApi.postMessage({ type: "viewProblem" })}
+            >
+              View Problem
+            </button>
+            <button
+              type="button"
+              className="give-up-btn"
+              onClick={handleGiveUp}
+            >
+              Give Up
+            </button>
+          </div>
         )}
 
         {ratingConfirmation && (
@@ -514,7 +534,9 @@ function AppContent() {
           </div>
         )}
 
-        {showProblems ? (
+        {showDashboard ? (
+          <Dashboard onClose={() => setShowDashboard(false)} />
+        ) : showProblems ? (
           <ProblemBrowser onClose={() => setShowProblems(false)} />
         ) : sessionLoading ? (
           <div className="chat-container">

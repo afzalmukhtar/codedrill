@@ -17,6 +17,8 @@ function formatSeconds(ms: number): string {
 interface TimerProps {
   /** Suggested duration from problem difficulty (pre-fills the input). */
   timerDurationMs?: number;
+  /** Current drill mode -- shown as a role badge when the timer is active. */
+  mode?: "agent" | "teach" | "interview";
 }
 
 /**
@@ -29,7 +31,7 @@ interface TimerProps {
  *   Running  -- big countdown display with Stop / Reset
  *   Paused   -- display frozen with Resume / Reset
  */
-export function Timer({ timerDurationMs }: TimerProps) {
+export function Timer({ timerDurationMs, mode }: TimerProps) {
   const {
     remainingMs,
     isRunning,
@@ -96,8 +98,15 @@ export function Timer({ timerDurationMs }: TimerProps) {
   const seconds = formatSeconds(displayMs);
   const isExpired = isRunning && remainingMs <= 0;
 
+  const roleBadge = isRunning && mode && mode !== "agent" ? (
+    <div className={`role-badge role-badge--${mode}`}>
+      {mode === "interview" ? "Interviewer" : "Teacher"}
+    </div>
+  ) : null;
+
   return (
     <div className="timer-container">
+      {roleBadge}
       {/* Large MM:SS display */}
       <div className="timer-display">
         {!isRunning ? (

@@ -13,6 +13,7 @@ export interface PromptContext {
   attemptNumber?: number;
   hintLevel?: number;
   timeRemaining?: string;
+  timeElapsed?: string;
   previousRatings?: string;
   problemTitle?: string;
   difficulty?: string;
@@ -35,6 +36,7 @@ const TEMPLATE_VARIABLES: Record<keyof PromptContext, string> = {
   attemptNumber: "ATTEMPT_NUMBER",
   hintLevel: "HINT_LEVEL",
   timeRemaining: "TIME_REMAINING",
+  timeElapsed: "TIME_ELAPSED",
   previousRatings: "PREVIOUS_RATINGS",
   problemTitle: "PROBLEM_TITLE",
   difficulty: "DIFFICULTY",

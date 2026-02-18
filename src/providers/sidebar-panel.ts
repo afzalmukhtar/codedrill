@@ -60,6 +60,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   /** Countdown timer (lives in extension host, survives webview recreation). */
   private readonly _timer = new Timer();
 
+  /** Heartbeat: checks for inactivity and sends auto-nudges during interview mode. */
+  private _heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private _lastUserMessageTime = 0;
+  private _lastNudgePhase = 0;
+
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _configManager: ConfigManager,
@@ -209,6 +214,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         await this._onOpenProblem(message.slug as string);
         break;
 
+      case "viewProblem":
+        this._onViewProblem();
+        break;
+
+      case "getDashboard":
+        this._onGetDashboard();
+        break;
+
       default:
         break;
     }
@@ -292,6 +305,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
     // Add user message to history
     this._conversationHistory.push({ role: "user", content: text.trim() });
+    this._lastUserMessageTime = Date.now();
 
     if (!this._router.hasProviders) {
       this.postMessage({
@@ -590,6 +604,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       }
     }
 
+    let timeElapsed: string | undefined;
+    if (this._timer.isRunning) {
+      const elapsedMs = this._timer.getElapsedMs();
+      const elapsedMin = Math.floor(elapsedMs / 60_000);
+      const elapsedSec = Math.floor((elapsedMs % 60_000) / 1000);
+      timeElapsed = `${String(elapsedMin).padStart(2, "0")}:${String(elapsedSec).padStart(2, "0")}`;
+    }
+
     return {
       userProfile: userProfile || undefined,
       filePath: fileAttachment?.metadata?.filePath,
@@ -600,6 +622,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       attemptNumber,
       hintLevel,
       timeRemaining,
+      timeElapsed,
       previousRatings: previousRatings || undefined,
     };
   }
@@ -646,6 +669,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       case "start":
         if (durationMs && durationMs > 0) {
           this._timer.start(durationMs);
+          if (this._mode === "interview") {
+            this._startHeartbeat();
+          }
         }
         break;
       case "pause":
@@ -655,6 +681,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         this._timer.resume();
         break;
       case "stop": {
+        this._stopHeartbeat();
         const result = this._timer.stop();
         this.postMessage({
           type: "timerStopped",
@@ -664,9 +691,112 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         break;
       }
       case "reset": {
+        this._stopHeartbeat();
         this._timer.reset();
         this.postMessage({ type: "timerStopped", elapsedMs: 0, wasExpired: false });
         break;
+      }
+    }
+  }
+
+  // ================================================================
+  // Heartbeat -- auto-nudge during interview mode
+  // ================================================================
+
+  private _startHeartbeat(): void {
+    this._stopHeartbeat();
+    this._lastUserMessageTime = Date.now();
+    this._lastNudgePhase = 0;
+
+    this._heartbeatInterval = setInterval(() => {
+      this._heartbeatTick();
+    }, 60_000);
+  }
+
+  private _stopHeartbeat(): void {
+    if (this._heartbeatInterval !== null) {
+      clearInterval(this._heartbeatInterval);
+      this._heartbeatInterval = null;
+    }
+    this._lastNudgePhase = 0;
+  }
+
+  private _heartbeatTick(): void {
+    if (!this._timer.isRunning || this._timer.isPaused) { return; }
+    if (this._mode !== "interview") { return; }
+
+    const elapsedMs = this._timer.getElapsedMs();
+    const elapsedMin = elapsedMs / 60_000;
+    const silenceSec = (Date.now() - this._lastUserMessageTime) / 1000;
+
+    // Only nudge if user has been silent for at least 90 seconds
+    if (silenceSec < 90) { return; }
+
+    // Determine which phase we're in and whether we've already nudged at this level
+    let phase = 0;
+    if (elapsedMin >= 19) { phase = 3; }
+    else if (elapsedMin >= 13) { phase = 2; }
+    else if (elapsedMin >= 8) { phase = 1; }
+
+    if (phase === 0 || phase <= this._lastNudgePhase) { return; }
+    this._lastNudgePhase = phase;
+
+    this._sendHeartbeatNudge(elapsedMin).catch((err) => {
+      console.error("[SidebarProvider] Heartbeat nudge failed:", err);
+    });
+  }
+
+  private async _sendHeartbeatNudge(elapsedMin: number): Promise<void> {
+    if (!this._router.hasProviders || !this._selectedModel) { return; }
+
+    const heartbeatMessage = `[HEARTBEAT] The candidate has been quiet. Elapsed time: ${Math.floor(elapsedMin)} minutes. Check their code and respond according to the heartbeat protocol.`;
+
+    this._conversationHistory.push({ role: "user", content: heartbeatMessage });
+
+    const abortController = new AbortController();
+    this._abortController = abortController;
+
+    const contextAttachments = this._contextEngine.gatherAutoContext(this._lastActiveEditor);
+    const systemPrompt = await this._getSystemPrompt(contextAttachments);
+
+    try {
+      const stream = this._router.chat({
+        model: this._selectedModel,
+        messages: this._conversationHistory,
+        systemPrompt,
+        stream: true,
+        temperature: 0.7,
+        signal: abortController.signal,
+      });
+
+      let fullContent = "";
+
+      for await (const chunk of stream) {
+        if (abortController.signal.aborted) { break; }
+        if (chunk.type === "content" && chunk.content) {
+          fullContent += chunk.content;
+        }
+      }
+
+      // Remove the synthetic heartbeat user message
+      this._conversationHistory.pop();
+
+      // If the LLM responded with [SILENCE], don't show anything
+      if (!fullContent || fullContent.trim() === "[SILENCE]") { return; }
+
+      this._conversationHistory.push({ role: "assistant", content: fullContent });
+
+      this.postMessage({ type: "chatChunk", content: fullContent });
+      this.postMessage({ type: "chatDone" });
+    } catch (err) {
+      // Remove the synthetic message on error
+      if (this._conversationHistory.length > 0 && this._conversationHistory[this._conversationHistory.length - 1].content.startsWith("[HEARTBEAT]")) {
+        this._conversationHistory.pop();
+      }
+      console.error("[SidebarProvider] Heartbeat error:", err);
+    } finally {
+      if (this._abortController === abortController) {
+        this._abortController = null;
       }
     }
   }
@@ -686,6 +816,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       this._gaveUp = true;
       this.postMessage({ type: "modeOverride", mode: "teach" });
     }
+
+    this._stopHeartbeat();
 
     // Stop timer and collect elapsed time
     const timerResult = this._timer.isRunning
@@ -805,6 +937,76 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     } else {
       this.postMessage({ type: "chatError", message: `No description available for "${slug}". Run "Start Session" to generate one via LLM.` });
     }
+  }
+
+  // ================================================================
+  // Dashboard -- aggregate stats for the progress dashboard
+  // ================================================================
+
+  private _onGetDashboard(): void {
+    if (!this._repository) {
+      this.postMessage({
+        type: "dashboardData",
+        data: {
+          totalSolved: 0,
+          totalProblems: 0,
+          streakDays: 0,
+          dueCount: 0,
+          categoryStats: [],
+          dueReviews: [],
+        },
+      });
+      return;
+    }
+
+    const totalSolved = this._repository.getTotalSolved();
+    const totalProblems = this._repository.getProblemCount();
+    const streakDays = this._repository.getStreakDays();
+    const categoryStats = this._repository.getCategoryStats();
+
+    const dueCards = this._repository.getDueCards(10);
+    const dueReviews = dueCards.map((card) => {
+      const problem = this._repository!.getProblemById(card.problemId);
+      return {
+        title: problem?.title ?? `Problem #${card.problemId}`,
+        difficulty: problem?.difficulty ?? "Medium",
+        category: problem?.category ?? "",
+        due: card.due,
+      };
+    });
+
+    this.postMessage({
+      type: "dashboardData",
+      data: {
+        totalSolved,
+        totalProblems,
+        streakDays,
+        dueCount: dueCards.length,
+        categoryStats,
+        dueReviews,
+      },
+    });
+  }
+
+  // ================================================================
+  // View problem -- open the problem markdown in a split pane preview
+  // ================================================================
+
+  private _onViewProblem(): void {
+    if (!this._activeProblem?.filePath) { return; }
+
+    const fileUri = vscode.Uri.file(this._activeProblem.filePath);
+    vscode.commands.executeCommand("markdown.showPreview", fileUri).then(
+      undefined,
+      () => {
+        vscode.workspace.openTextDocument(fileUri).then((doc) => {
+          vscode.window.showTextDocument(doc, {
+            viewColumn: vscode.ViewColumn.Beside,
+            preview: true,
+          });
+        });
+      },
+    );
   }
 
   // ================================================================

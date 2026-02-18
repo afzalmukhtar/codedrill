@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import type { ChatMessage } from "../App";
+import { CodeBlock } from "./CodeBlock";
 
 interface ChatProps {
   messages: ChatMessage[];
@@ -25,6 +26,8 @@ function renderStructuredContent(content: string): React.ReactNode {
   const blocks: React.ReactNode[] = [];
   let paragraphBuffer: string[] = [];
   let bulletBuffer: string[] = [];
+  let codeBuffer: string[] | null = null;
+  let codeLang = "";
   let key = 0;
 
   const flushParagraph = () => {
@@ -51,7 +54,35 @@ function renderStructuredContent(content: string): React.ReactNode {
     }
   };
 
+  const flushCode = () => {
+    if (codeBuffer !== null) {
+      const code = codeBuffer.join("\n");
+      blocks.push(
+        <CodeBlock key={`cb-${key++}`} code={code} language={codeLang || undefined} />
+      );
+      codeBuffer = null;
+      codeLang = "";
+    }
+  };
+
   for (const rawLine of lines) {
+    if (codeBuffer !== null) {
+      if (rawLine.trimEnd() === "```") {
+        flushCode();
+      } else {
+        codeBuffer.push(rawLine);
+      }
+      continue;
+    }
+
+    if (rawLine.trimStart().startsWith("```")) {
+      flushParagraph();
+      flushBullets();
+      codeLang = rawLine.trimStart().slice(3).trim();
+      codeBuffer = [];
+      continue;
+    }
+
     const line = rawLine.trim();
     if (!line) {
       flushParagraph();
@@ -66,6 +97,13 @@ function renderStructuredContent(content: string): React.ReactNode {
       flushBullets();
       paragraphBuffer.push(line);
     }
+  }
+
+  if (codeBuffer !== null) {
+    const code = codeBuffer.join("\n");
+    blocks.push(
+      <CodeBlock key={`cb-${key++}`} code={code} language={codeLang || undefined} />
+    );
   }
 
   flushParagraph();
