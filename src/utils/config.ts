@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { ProviderConfig, ProvidersConfig } from "../ai/providers/types";
+import type { ProviderConfig, AzureOpenAIProviderConfig, ProvidersConfig } from "../ai/providers/types";
 
 /**
  * Typed config shape loaded from codedrill.config.json.
@@ -121,11 +121,23 @@ export class ConfigManager {
    * Walk through the providers object and resolve env vars in string values.
    */
   private _resolveProviders(raw: Record<string, unknown>): ProvidersConfig {
-    const result: Record<string, ProviderConfig> = {};
+    const result: Record<string, ProviderConfig | AzureOpenAIProviderConfig> = {};
 
     for (const [key, value] of Object.entries(raw)) {
       if (typeof value !== "object" || value === null) { continue; }
       const src = value as Record<string, unknown>;
+
+      if (key === "azureOpenai") {
+        result[key] = {
+          enabled: src.enabled === true,
+          endpoint: typeof src.endpoint === "string" ? this._resolveEnvVars(src.endpoint) : "",
+          apiKey: typeof src.apiKey === "string" ? this._resolveEnvVars(src.apiKey) : "",
+          apiVersion: typeof src.apiVersion === "string" ? src.apiVersion : undefined,
+          deployment: typeof src.deployment === "string" ? this._resolveEnvVars(src.deployment) : "",
+          displayName: typeof src.displayName === "string" ? src.displayName : undefined,
+        } satisfies AzureOpenAIProviderConfig;
+        continue;
+      }
 
       result[key] = {
         enabled: src.enabled === true,

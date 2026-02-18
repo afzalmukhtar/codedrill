@@ -96,7 +96,7 @@ export function Chat({ messages, isLoading }: ChatProps) {
   return (
     <div className="chat-container">
       {messages.map((message, index) => (
-        <article key={`${message.timestamp}-${index}`} className={`chat-message chat-message--${message.role}`}>
+        <article key={`${message.role}-${message.timestamp}-${index}`} className={`chat-message chat-message--${message.role}`}>
           {message.role === "assistant" && (
             <div className="chat-message-meta">
               <span className="chat-message-role">CodeDrill</span>

@@ -132,6 +132,12 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand("codedrill.downloadProblems", () => {
+      repoReady.then(() => downloadAllProblems(problemBank));
+    })
+  );
+
   console.log("CodeDrill extension activated.");
 }
 
@@ -460,6 +466,41 @@ function formatProblemMarkdown(problem: import("./db/schema").Problem): string {
   lines.push("");
 
   return lines.join("\n");
+}
+
+/**
+ * Batch-download all missing problem descriptions from LeetCode.
+ * Shows a cancellable progress notification.
+ */
+async function downloadAllProblems(problemBank: ProblemBank): Promise<void> {
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "CodeDrill: Downloading problem descriptions...",
+      cancellable: true,
+    },
+    async (progress, token) => {
+      const cancellation = { isCancellationRequested: false };
+      token.onCancellationRequested(() => { cancellation.isCancellationRequested = true; });
+
+      const downloaded = await problemBank.downloadAllDescriptions(
+        (done, total, current) => {
+          const pct = Math.round((done / total) * 100);
+          progress.report({
+            message: `${done}/${total} (${pct}%) - ${current}`,
+            increment: (1 / total) * 100,
+          });
+        },
+        cancellation,
+      );
+
+      if (cancellation.isCancellationRequested) {
+        vscode.window.showInformationMessage(`CodeDrill: Download cancelled. ${downloaded} problems saved.`);
+      } else {
+        vscode.window.showInformationMessage(`CodeDrill: Downloaded ${downloaded} problem descriptions.`);
+      }
+    },
+  );
 }
 
 /**

@@ -119,16 +119,11 @@ export class ProfileManager {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const systemPrompt = buildPrompt(template, {
-      // Template uses raw {{EXISTING_PROFILE}} and {{RECENT_MESSAGES}}
-      // which are not part of the standard PromptContext keys, so we
-      // do manual replacement after the standard buildPrompt pass.
+    const finalPrompt = buildPrompt(template, {
+      date: today,
+      existingProfile: existingProfile ?? "No existing profile yet.",
+      recentMessages: formattedMessages,
     });
-
-    const finalPrompt = systemPrompt
-      .replaceAll("{{EXISTING_PROFILE}}", existingProfile ?? "No existing profile yet.")
-      .replaceAll("{{RECENT_MESSAGES}}", formattedMessages)
-      .replaceAll("{{DATE}}", today);
 
     let fullContent = "";
 

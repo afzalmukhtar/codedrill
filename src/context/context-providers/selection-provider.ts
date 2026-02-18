@@ -42,12 +42,4 @@ export class SelectionContextProvider {
     };
   }
 
-  /**
-   * Check if there is a non-empty selection in the active editor.
-   */
-  hasActiveSelection(): boolean {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) { return false; }
-    return !editor.selection.isEmpty;
-  }
 }

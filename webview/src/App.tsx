@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, Component, type ErrorInfo, type ReactNode } from "react";
 import { Chat } from "./components/Chat";
 import { ChatInput } from "./components/ChatInput";
 import { Timer } from "./components/Timer";
@@ -15,6 +15,38 @@ interface VsCodeApi {
 declare function acquireVsCodeApi(): VsCodeApi;
 
 const vscodeApi = acquireVsCodeApi();
+
+interface ErrorBoundaryState { hasError: boolean; error?: Error }
+
+class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error("[CodeDrill] Uncaught render error:", error, info.componentStack);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 16, textAlign: "center" }}>
+          <p>Something went wrong.</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false })}
+            style={{ marginTop: 8, cursor: "pointer" }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface VscodeContextType {
   postMessage: (message: unknown) => void;
@@ -87,13 +119,14 @@ function loadPersistedState(): PersistedState | null {
   return null;
 }
 
-export function App() {
+function AppContent() {
   const persisted = useRef(loadPersistedState());
 
   const [messages, setMessages] = useState<ChatMessage[]>(
     () => persisted.current?.messages ?? []
   );
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string>(
     () => persisted.current?.selectedModel ?? ""
   );
@@ -108,6 +141,7 @@ export function App() {
   const [chatHistory, setChatHistory] = useState<ChatSummary[]>([]);
   const [contextBadges, setContextBadges] = useState<ContextBadge[]>([]);
   const [showRating, setShowRating] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
   const [showProblems, setShowProblems] = useState(false);
   const [ratingConfirmation, setRatingConfirmation] = useState<string | null>(null);
   const [activeProblem, setActiveProblem] = useState<{
@@ -233,6 +267,7 @@ export function App() {
 
         case "modelsLoaded":
           setModels(message.models as ModelInfo[]);
+          setModelsLoading(false);
           if (message.defaultModel) {
             setSelectedModel(message.defaultModel as string);
           }
@@ -312,10 +347,17 @@ export function App() {
           }
           break;
 
+        case "modeOverride": {
+          const newMode = message.mode as DrillMode;
+          if (newMode) { setMode(newMode); }
+          break;
+        }
+
         case "ratingRecorded": {
           const rc = message as { nextReview: string; cardState: string };
           setRatingConfirmation(`Next review: ${rc.nextReview}`);
           setShowRating(false);
+          setGaveUp(false);
           setActiveProblem(null);
           break;
         }
@@ -406,6 +448,11 @@ export function App() {
     sessionStreamRef.current = "";
   }, []);
 
+  const handleGiveUp = useCallback(() => {
+    setGaveUp(true);
+    setShowRating(true);
+  }, []);
+
   return (
     <VscodeContext.Provider value={{ postMessage: vscodeApi.postMessage }}>
       <div className="sidebar-container">
@@ -446,9 +493,19 @@ export function App() {
 
         {showRating && (
           <RatingPanel
-            onRated={() => setShowRating(false)}
-            gaveUp={false}
+            onRated={() => { setShowRating(false); setGaveUp(false); }}
+            gaveUp={gaveUp}
           />
+        )}
+
+        {activeProblem && !showRating && (
+          <button
+            type="button"
+            className="give-up-btn"
+            onClick={handleGiveUp}
+          >
+            Give Up
+          </button>
         )}
 
         {ratingConfirmation && (
@@ -540,5 +597,13 @@ export function App() {
         />
       </div>
     </VscodeContext.Provider>
+  );
+}
+
+export function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }

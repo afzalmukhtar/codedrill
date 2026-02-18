@@ -6,47 +6,10 @@ const CURSOR_CONTEXT_LINES = 15;
 /**
  * File Context Provider
  *
- * Reads file contents from the workspace.
- * Also provides "active file context" which includes metadata
+ * Provides "active file context" which includes metadata
  * and the 30 lines surrounding the cursor (not the entire file).
  */
 export class FileContextProvider {
-  /**
-   * Read a workspace file by path and return it as a ContextAttachment.
-   * Truncates content if it exceeds the token budget.
-   */
-  async resolve(filePath: string, maxTokens?: number): Promise<ContextAttachment | null> {
-    try {
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      if (!workspaceFolders || workspaceFolders.length === 0) { return null; }
-
-      const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
-      const raw = await vscode.workspace.fs.readFile(fileUri);
-      let content = Buffer.from(raw).toString("utf-8");
-
-      const tokenEstimate = Math.ceil(content.length / 4);
-      if (maxTokens && tokenEstimate > maxTokens) {
-        const charLimit = maxTokens * 4;
-        content = content.slice(0, charLimit) + "\n\n... [truncated]";
-      }
-
-      const document = await vscode.workspace.openTextDocument(fileUri);
-
-      return {
-        type: "file",
-        label: filePath,
-        content,
-        tokenEstimate: Math.ceil(content.length / 4),
-        metadata: {
-          filePath,
-          language: document.languageId,
-        },
-      };
-    } catch {
-      return null;
-    }
-  }
-
   /**
    * Get context from the active editor: file metadata + the lines
    * surrounding the cursor (15 above, 15 below = 30 total).
@@ -62,8 +25,19 @@ export class FileContextProvider {
     const relativePath = vscode.workspace.asRelativePath(document.uri, false);
     const language = document.languageId;
     const lineCount = document.lineCount;
-    const cursorLine = target.selection.active.line;
 
+    if (lineCount === 0) {
+      const header = `[${relativePath}] (${language}, empty file)`;
+      return {
+        type: "file",
+        label: relativePath,
+        content: header,
+        tokenEstimate: Math.ceil(header.length / 4),
+        metadata: { filePath: relativePath, language },
+      };
+    }
+
+    const cursorLine = target.selection.active.line;
     const startLine = Math.max(0, cursorLine - CURSOR_CONTEXT_LINES);
     const endLine = Math.min(lineCount - 1, cursorLine + CURSOR_CONTEXT_LINES);
 

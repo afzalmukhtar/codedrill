@@ -71,6 +71,39 @@
           },
           "required": ["enabled"]
         },
+        "azureOpenai": {
+          "type": "object",
+          "description": "Azure OpenAI Service. Connects to a specific deployment in your Azure subscription.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable Azure OpenAI as a model provider."
+            },
+            "endpoint": {
+              "type": "string",
+              "description": "Azure OpenAI resource endpoint URL (e.g., https://my-resource.openai.azure.com/)."
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "Azure OpenAI API key. Use ${AZURE_OPENAI_API_KEY} to reference an environment variable."
+            },
+            "apiVersion": {
+              "type": "string",
+              "default": "2024-08-01-preview",
+              "description": "Azure OpenAI API version string."
+            },
+            "deployment": {
+              "type": "string",
+              "description": "Name of the Azure OpenAI deployment (e.g., gpt-4.1)."
+            },
+            "displayName": {
+              "type": "string",
+              "description": "Human-readable name shown in the model selector. Defaults to deployment name."
+            }
+          },
+          "required": ["enabled", "endpoint", "apiKey", "deployment"]
+        },
         "anthropic": {
           "type": "object",
           "description": "Anthropic direct API access (Claude models).",

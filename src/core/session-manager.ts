@@ -157,13 +157,16 @@ export class SessionManager {
       notes: null,
     });
 
-    // Update FSRS card
-    const updatedCard = await this._scheduler.recordReview(
-      session.currentCardId,
-      rating,
-    );
-
-    return updatedCard;
+    try {
+      const updatedCard = await this._scheduler.recordReview(
+        session.currentCardId,
+        rating,
+      );
+      return updatedCard;
+    } catch (err) {
+      console.error("[SessionManager] FSRS recordReview failed:", err);
+      return null;
+    }
   }
 
   /**

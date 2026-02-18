@@ -340,6 +340,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         systemPrompt,
         stream: true,
         temperature: 0.7,
+        signal: abortController.signal,
       });
 
       let fullContent = "";
@@ -402,10 +403,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // Chat management
   // ================================================================
 
-  private _onNewChat(): void {
-    // Save current chat before starting new one
-    this._autoSaveChat();
-
+  private async _onNewChat(): Promise<void> {
+    await this._autoSaveChat();
     this._conversationHistory = [];
     this._activeChatId = null;
     this._chatCreatedAt = null;
@@ -553,8 +552,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         const problemUri = vscode.Uri.file(this._activeProblem.filePath);
         const bytes = await vscode.workspace.fs.readFile(problemUri);
         problemStatement = new TextDecoder("utf-8").decode(bytes);
-      } catch {
-        // Problem file might have been deleted; ignore.
+      } catch (err) {
+        console.warn("[SidebarProvider] Could not read problem file:", err);
       }
     }
 
@@ -617,7 +616,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
    * Called externally (from extension.ts) when a problem is loaded.
    * Stores the active problem reference and starts the timer.
    */
-  public setActiveProblem(problem: {
+  public async setActiveProblem(problem: {
     slug: string;
     title: string;
     difficulty: string;
@@ -626,13 +625,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     problemId?: number;
     sessionId?: number;
     timerDurationMs?: number;
-  }): void {
+  }): Promise<void> {
     this._activeProblem = problem;
     this._gaveUp = false;
 
-    // Begin the attempt in the session manager
     if (this._sessionManager) {
-      this._sessionManager.beginAttempt("new");
+      await this._sessionManager.beginAttempt("new");
     }
 
     // Do NOT auto-start timer. Send the duration to the webview so the

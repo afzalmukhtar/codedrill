@@ -45,6 +45,14 @@
       {
         "command": "codedrill.showDashboard",
         "title": "CodeDrill: Show Dashboard"
+      },
+      {
+        "command": "codedrill.downloadProblems",
+        "title": "CodeDrill: Download All Problem Descriptions"
+      },
+      {
+        "command": "codedrill.reloadPrompts",
+        "title": "CodeDrill: Reload Prompt Templates"
       }
     ],
     "viewsContainers": {
@@ -71,75 +79,7 @@
         "codedrill.configPath": {
           "type": "string",
           "default": "./codedrill.config.json",
-          "description": "Path to the CodeDrill configuration file."
-        },
-        "codedrill.timerEasy": {
-          "type": "number",
-          "default": 20,
-          "description": "Timer duration in minutes for Easy problems."
-        },
-        "codedrill.timerMedium": {
-          "type": "number",
-          "default": 35,
-          "description": "Timer duration in minutes for Medium problems."
-        },
-        "codedrill.timerHard": {
-          "type": "number",
-          "default": 50,
-          "description": "Timer duration in minutes for Hard problems."
-        },
-        "codedrill.timerSystemDesign": {
-          "type": "number",
-          "default": 45,
-          "description": "Timer duration in minutes for System Design problems."
-        },
-        "codedrill.problemLists": {
-          "type": "array",
-          "default": [
-            "neetcode150",
-            "blind75"
-          ],
-          "description": "Active curated problem lists."
-        },
-        "codedrill.dailyNewProblems": {
-          "type": "number",
-          "default": 1,
-          "description": "Number of new problems per session."
-        },
-        "codedrill.dailyReviewProblems": {
-          "type": "number",
-          "default": 1,
-          "description": "Number of review problems per session."
-        },
-        "codedrill.mutationStartsAtAttempt": {
-          "type": "number",
-          "default": 3,
-          "description": "Attempt number at which problem mutations begin."
-        },
-        "codedrill.language": {
-          "type": "string",
-          "default": "python",
-          "enum": [
-            "python",
-            "javascript",
-            "typescript",
-            "java",
-            "cpp",
-            "go",
-            "rust",
-            "csharp"
-          ],
-          "description": "Preferred programming language for solutions."
-        },
-        "codedrill.autoIncludeCurrentFile": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically include current file as context in AI chat."
-        },
-        "codedrill.maxContextTokens": {
-          "type": "number",
-          "default": 8000,
-          "description": "Maximum token budget for context attachments."
+          "description": "Path to the CodeDrill configuration file. All settings are managed in this file."
         }
       }
     }
@@ -160,7 +100,7 @@
     "leetcode-query": "^2.0.1",
     "marked": "^15.0.0",
     "highlight.js": "^11.0.0",
-    "@openrouter/sdk": "latest",
+    "@openrouter/sdk": "^0.0.14",
     "ollama": "^0.5.0",
     "openai": "^4.0.0"
   },

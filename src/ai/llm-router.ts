@@ -6,6 +6,9 @@ import type {
   ProvidersConfig,
 } from "./providers/types";
 import { OllamaProvider } from "./providers/ollama";
+import { AzureOpenAIProvider } from "./providers/azure-openai";
+import { OpenAICompatProvider } from "./providers/openai-compat";
+import { OpenRouterProvider } from "./providers/openrouter";
 
 /**
  * LLM Router -- Unified Provider Routing Layer
@@ -13,8 +16,8 @@ import { OllamaProvider } from "./providers/ollama";
  * Initialises enabled providers from config, aggregates their models,
  * and routes chat requests to the correct backend.
  *
- * Currently supports Ollama only. Structured so adding OpenRouter,
- * OpenAI, Anthropic etc. later is a one-line addition.
+ * Supported providers: Ollama, Azure OpenAI, OpenAI, Anthropic,
+ * Google AI, OpenRouter, and any custom OpenAI-compatible endpoint.
  */
 export class LLMRouter {
   private _providers: Map<string, LLMProvider> = new Map();
@@ -50,10 +53,94 @@ export class LLMRouter {
       console.log("[LLMRouter] Ollama not enabled in config (ollama.enabled =", config.ollama?.enabled, ")");
     }
 
-    // Future: OpenRouter, OpenAI, Anthropic, etc.
-    // if (config.openrouter?.enabled) { ... }
-    // if (config.openai?.enabled) { ... }
-    // if (config.anthropic?.enabled) { ... }
+    // Azure OpenAI
+    if (config.azureOpenai?.enabled) {
+      const azCfg = config.azureOpenai;
+      console.log(`[LLMRouter] Azure OpenAI enabled, deployment "${azCfg.deployment}" at ${azCfg.endpoint}`);
+      try {
+        const azure = new AzureOpenAIProvider({
+          endpoint: azCfg.endpoint,
+          apiKey: azCfg.apiKey,
+          apiVersion: azCfg.apiVersion,
+          deployment: azCfg.deployment,
+          displayName: azCfg.displayName,
+        });
+        const available = await azure.isAvailable();
+        if (available) {
+          this._providers.set(azure.id, azure);
+          console.log("[LLMRouter] Azure OpenAI provider initialised successfully");
+        } else {
+          console.warn("[LLMRouter] Azure OpenAI enabled but deployment not reachable. Check endpoint and API key.");
+        }
+      } catch (err) {
+        console.error("[LLMRouter] Failed to init Azure OpenAI:", err);
+      }
+    }
+
+    // OpenAI
+    if (config.openai?.enabled && config.openai.apiKey) {
+      console.log("[LLMRouter] OpenAI enabled");
+      await this._initCompat({
+        id: "openai",
+        name: "OpenAI",
+        baseUrl: config.openai.baseUrl ?? "https://api.openai.com/v1",
+        apiKey: config.openai.apiKey,
+        models: config.openai.models,
+      });
+    }
+
+    // Anthropic (OpenAI-compatible endpoint)
+    if (config.anthropic?.enabled && config.anthropic.apiKey) {
+      console.log("[LLMRouter] Anthropic enabled");
+      await this._initCompat({
+        id: "anthropic",
+        name: "Anthropic",
+        baseUrl: config.anthropic.baseUrl ?? "https://api.anthropic.com/v1",
+        apiKey: config.anthropic.apiKey,
+        models: config.anthropic.models,
+      });
+    }
+
+    // Google AI (OpenAI-compatible endpoint)
+    if (config.google?.enabled && config.google.apiKey) {
+      console.log("[LLMRouter] Google AI enabled");
+      await this._initCompat({
+        id: "google",
+        name: "Google AI",
+        baseUrl: config.google.baseUrl ?? "https://generativelanguage.googleapis.com/v1beta/openai",
+        apiKey: config.google.apiKey,
+        models: config.google.models,
+      });
+    }
+
+    // Custom OpenAI-compatible endpoint (LM Studio, vLLM, etc.)
+    if (config.custom?.enabled && config.custom.baseUrl) {
+      console.log(`[LLMRouter] Custom provider "${config.custom.name ?? "Custom"}" at ${config.custom.baseUrl}`);
+      await this._initCompat({
+        id: "custom",
+        name: config.custom.name ?? "Custom",
+        baseUrl: config.custom.baseUrl,
+        apiKey: config.custom.apiKey ?? "",
+        models: config.custom.models,
+      });
+    }
+
+    // OpenRouter (300+ models from 60+ providers)
+    if (config.openrouter?.enabled && config.openrouter.apiKey) {
+      console.log("[LLMRouter] OpenRouter enabled");
+      try {
+        const openrouter = new OpenRouterProvider(config.openrouter.apiKey);
+        const available = await openrouter.isAvailable();
+        if (available) {
+          this._providers.set(openrouter.id, openrouter);
+          console.log("[LLMRouter] OpenRouter provider initialised successfully");
+        } else {
+          console.warn("[LLMRouter] OpenRouter enabled but API not reachable. Check your API key.");
+        }
+      } catch (err) {
+        console.error("[LLMRouter] Failed to init OpenRouter:", err);
+      }
+    }
 
     // Discover models from all active providers
     await this._discoverModels();
@@ -112,6 +199,23 @@ export class LLMRouter {
   }
 
   // ---- internal ----
+
+  private async _initCompat(config: {
+    id: string; name: string; baseUrl: string; apiKey: string; models?: string[];
+  }): Promise<void> {
+    try {
+      const provider = new OpenAICompatProvider(config);
+      const available = await provider.isAvailable();
+      if (available) {
+        this._providers.set(provider.id, provider);
+        console.log(`[LLMRouter] ${config.name} provider initialised successfully`);
+      } else {
+        console.warn(`[LLMRouter] ${config.name} enabled but not reachable at ${config.baseUrl}. Check endpoint and API key.`);
+      }
+    } catch (err) {
+      console.error(`[LLMRouter] Failed to init ${config.name}:`, err);
+    }
+  }
 
   private async _discoverModels(): Promise<void> {
     this._models = [];

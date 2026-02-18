@@ -16,6 +16,7 @@
   --codedrill-accent: var(--vscode-textLink-foreground, #6ea8fe);
   --codedrill-focus-border: color-mix(in srgb, var(--codedrill-accent) 58%, var(--codedrill-border));
   --codedrill-focus-ring: color-mix(in srgb, var(--codedrill-accent) 24%, transparent);
+  --codedrill-font-mono: "SF Mono", "Fira Code", "Cascadia Code", "Menlo", monospace;
 }
 
 * {
@@ -540,6 +541,10 @@ body {
   background: var(--codedrill-subtle);
 }
 
+.chat-history-item {
+  border-left: 2px solid transparent;
+}
+
 .chat-history-item--active {
   background: var(--codedrill-focus-ring);
   border-left: 2px solid var(--codedrill-accent);
@@ -864,6 +869,23 @@ body {
 }
 
 /* ── Rating Panel ── */
+
+.give-up-btn {
+  display: block;
+  margin: 4px auto 8px;
+  padding: 4px 14px;
+  font-size: 11px;
+  color: var(--codedrill-muted);
+  background: transparent;
+  border: 1px solid var(--codedrill-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.give-up-btn:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
 
 .rating-panel {
   padding: 12px;

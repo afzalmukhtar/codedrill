@@ -17,6 +17,15 @@
       "apiKey": "${OPENAI_API_KEY}"
     },
 
+    "azureOpenai": {
+      "enabled": false,
+      "endpoint": "${AZURE_OPENAI_ENDPOINT}",
+      "apiKey": "${AZURE_OPENAI_API_KEY}",
+      "apiVersion": "2024-08-01-preview",
+      "deployment": "${AZURE_OPENAI_DEPLOYMENT}",
+      "displayName": "GPT-4.1 (Azure)"
+    },
+
     "anthropic": {
       "enabled": false,
       "apiKey": "${ANTHROPIC_API_KEY}"

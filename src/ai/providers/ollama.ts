@@ -78,6 +78,7 @@ export class OllamaProvider implements LLMProvider {
       let completionTokens = 0;
 
       for await (const chunk of stream) {
+        if (request.signal?.aborted) { break; }
         if (chunk.message?.content) {
           yield {
             type: "content",

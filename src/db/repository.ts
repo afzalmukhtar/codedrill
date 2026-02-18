@@ -196,6 +196,14 @@ export class Repository {
     return rows[0].values.map((v) => this._rowToProblem(rows[0].columns, v));
   }
 
+  getProblemsWithoutDescription(): Problem[] {
+    const rows = this.db.exec(
+      "SELECT * FROM problems WHERE description IS NULL OR description = '' ORDER BY category, title",
+    );
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToProblem(rows[0].columns, v));
+  }
+
   private _rowToProblem(cols: string[], vals: unknown[]): Problem {
     const obj: Record<string, unknown> = {};
     cols.forEach((c, i) => { obj[c] = vals[i]; });

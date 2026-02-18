@@ -18,6 +18,9 @@ export interface PromptContext {
   difficulty?: string;
   category?: string;
   preferredLanguage?: string;
+  date?: string;
+  existingProfile?: string;
+  recentMessages?: string;
 }
 
 const templateCache = new Map<string, string>();
@@ -37,6 +40,9 @@ const TEMPLATE_VARIABLES: Record<keyof PromptContext, string> = {
   difficulty: "DIFFICULTY",
   category: "CATEGORY",
   preferredLanguage: "PREFERRED_LANGUAGE",
+  date: "DATE",
+  existingProfile: "EXISTING_PROFILE",
+  recentMessages: "RECENT_MESSAGES",
 };
 
 /**

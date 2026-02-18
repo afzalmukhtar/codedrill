@@ -112,7 +112,7 @@ export function ChatInput({
         <div className="context-badges" aria-label="Attached context">
           {contextBadges.map((badge) => (
             <span key={`${badge.type}-${badge.label}`} className={`context-badge context-badge--${badge.type}`} title={`${badge.label} (~${badge.tokenEstimate} tokens)`}>
-              {badge.type === "selection" ? "sel" : "file"}: {badge.label}
+              {{ selection: "sel", file: "file", symbol: "sym", problem: "prob", solution: "sol", terminal: "term" }[badge.type] ?? badge.type}: {badge.label}
             </span>
           ))}
         </div>

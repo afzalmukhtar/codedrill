@@ -162,6 +162,40 @@ export class ProblemBank {
   }
 
   /**
+   * Batch-download descriptions for all problems that don't have one yet.
+   * Rate-limited via LeetCodeClient. Reports progress via callback.
+   * Returns the number of successfully downloaded problems.
+   */
+  async downloadAllDescriptions(
+    onProgress?: (downloaded: number, total: number, current: string) => void,
+    cancellationToken?: { isCancellationRequested: boolean },
+  ): Promise<number> {
+    const missing = this._repository.getProblemsWithoutDescription();
+    if (missing.length === 0) { return 0; }
+
+    let downloaded = 0;
+
+    for (const problem of missing) {
+      if (cancellationToken?.isCancellationRequested) { break; }
+
+      onProgress?.(downloaded, missing.length, problem.title);
+
+      try {
+        await this._fetchAndUpdate(problem);
+        downloaded++;
+      } catch (err) {
+        console.warn(`[ProblemBank] Failed to download "${problem.slug}":`, err);
+      }
+
+      // Small delay to avoid hammering LeetCode
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    console.log(`[ProblemBank] Batch download complete: ${downloaded}/${missing.length}`);
+    return downloaded;
+  }
+
+  /**
    * Fetch full problem details from LeetCode and update the DB record.
    */
   private async _fetchAndUpdate(problem: Problem): Promise<Problem> {

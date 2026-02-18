@@ -29,8 +29,6 @@ CREATE TABLE IF NOT EXISTS problems (
   leetcode_id   INTEGER,                         -- LeetCode problem number (nullable)
   fetched_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 
-  -- Indexes for common queries
-  UNIQUE(slug)
 );
 
 CREATE INDEX IF NOT EXISTS idx_problems_category ON problems(category);
@@ -132,19 +130,4 @@ CREATE TABLE IF NOT EXISTS user_config (
   value TEXT
 );
 
--- ============================================================
--- CHAT_HISTORY: Conversation logs for AI interactions
--- Stores chat messages for reference and context.
--- ============================================================
-CREATE TABLE IF NOT EXISTS chat_history (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id      INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
-  problem_id      INTEGER REFERENCES problems(id) ON DELETE SET NULL,
-  role            TEXT NOT NULL CHECK(role IN ('user', 'interviewer', 'teacher', 'system')),
-  content         TEXT NOT NULL,
-  context_refs    TEXT DEFAULT '[]',              -- JSON array of context attachment references
-  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
-CREATE INDEX IF NOT EXISTS idx_chat_problem ON chat_history(problem_id);
+-- Chat history is stored as JSON files (see storage/chat-storage.ts).

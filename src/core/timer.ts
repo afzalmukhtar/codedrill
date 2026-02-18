@@ -138,20 +138,20 @@ export class Timer {
     const phase = this.getPhase();
 
     for (const cb of this._tickCallbacks) {
-      cb(remaining, phase);
+      try { cb(remaining, phase); } catch (e) { console.error("[Timer] tick callback error:", e); }
     }
 
     if (!this._warningSent && remaining > 0 && remaining <= WARNING_THRESHOLD_MS) {
       this._warningSent = true;
       for (const cb of this._warningCallbacks) {
-        cb(remaining);
+        try { cb(remaining); } catch (e) { console.error("[Timer] warning callback error:", e); }
       }
     }
 
     if (remaining <= 0 && !this._hasExpired) {
       this._hasExpired = true;
       for (const cb of this._expiredCallbacks) {
-        cb();
+        try { cb(); } catch (e) { console.error("[Timer] expired callback error:", e); }
       }
       this.stop();
     }

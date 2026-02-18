@@ -113,6 +113,9 @@ export interface ChatRequest {
 
   /** IDE context attachments from @-mentions */
   context?: ContextAttachment[];
+
+  /** AbortSignal for cancelling the request and underlying HTTP connection */
+  signal?: AbortSignal;
 }
 
 /** A single chunk in a streaming response */
@@ -198,11 +201,22 @@ export interface ProviderConfig {
   models?: string[];
 }
 
+/** Azure OpenAI-specific configuration */
+export interface AzureOpenAIProviderConfig {
+  enabled: boolean;
+  endpoint: string;
+  apiKey: string;
+  apiVersion?: string;
+  deployment: string;
+  displayName?: string;
+}
+
 /** Top-level providers configuration map */
 export interface ProvidersConfig {
   openrouter?: ProviderConfig;
   ollama?: ProviderConfig;
   openai?: ProviderConfig;
+  azureOpenai?: AzureOpenAIProviderConfig;
   anthropic?: ProviderConfig;
   google?: ProviderConfig;
   custom?: ProviderConfig;

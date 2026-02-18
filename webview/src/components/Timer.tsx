@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { useTimer } from "../hooks/useTimer";
 
 const ONE_MINUTE_MS = 60_000;
@@ -43,9 +43,18 @@ export function Timer({ timerDurationMs }: TimerProps) {
     reset,
   } = useTimer();
 
-  // Pre-fill with the suggested duration when a new problem loads
+  const userDidReset = useRef(false);
+  const lastSuggestion = useRef(timerDurationMs);
+
+  // Pre-fill with the suggested duration when a new problem loads,
+  // but skip if user explicitly reset the timer.
   useEffect(() => {
-    if (timerDurationMs && timerDurationMs > 0 && !isRunning) {
+    if (timerDurationMs !== lastSuggestion.current) {
+      userDidReset.current = false;
+      lastSuggestion.current = timerDurationMs;
+    }
+
+    if (timerDurationMs && timerDurationMs > 0 && !isRunning && !userDidReset.current) {
       setDurationMs(timerDurationMs);
     }
   }, [timerDurationMs, isRunning, setDurationMs]);
@@ -71,9 +80,15 @@ export function Timer({ timerDurationMs }: TimerProps) {
 
   const handleStart = useCallback(() => {
     if (durationMs > 0) {
+      userDidReset.current = false;
       start(durationMs);
     }
   }, [durationMs, start]);
+
+  const handleReset = useCallback(() => {
+    userDidReset.current = true;
+    reset();
+  }, [reset]);
 
   // ── Display values ──
   const displayMs = isRunning ? remainingMs : durationMs;
@@ -157,7 +172,7 @@ export function Timer({ timerDurationMs }: TimerProps) {
             <button
               type="button"
               className="timer-ctrl timer-ctrl--reset"
-              onClick={reset}
+              onClick={handleReset}
               disabled={durationMs <= 0}
             >
               Reset
@@ -173,7 +188,7 @@ export function Timer({ timerDurationMs }: TimerProps) {
             <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={stop}>
               Stop
             </button>
-            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={reset}>
+            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset}>
               Reset
             </button>
           </>
@@ -187,14 +202,14 @@ export function Timer({ timerDurationMs }: TimerProps) {
             <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={stop}>
               Stop
             </button>
-            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={reset}>
+            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset}>
               Reset
             </button>
           </>
         )}
 
         {isExpired && !isPaused && (
-          <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={reset}>
+          <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset}>
             Reset
           </button>
         )}

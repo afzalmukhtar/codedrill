@@ -68,6 +68,7 @@ export class ProblemGeneratorPersona {
       systemPrompt,
       temperature: 0.7,
       stream: true,
+      signal,
     })) {
       if (signal?.aborted) {
         return null;
