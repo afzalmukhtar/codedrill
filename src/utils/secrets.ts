@@ -9,12 +9,31 @@
  * when ${ENV_VAR} resolution fails.
  */
 
-// import * as vscode from "vscode";
+import * as vscode from "vscode";
+
+const KEY_PREFIX = "codedrill.apikey.";
+
+function storageKey(providerId: string): string {
+  return `${KEY_PREFIX}${providerId}`;
+}
 
 export class SecretsManager {
-  // TODO: constructor(secretStorage: vscode.SecretStorage)
-  // TODO: getApiKey(providerId: string): Promise<string | undefined>
-  // TODO: setApiKey(providerId: string, key: string): Promise<void>
-  // TODO: deleteApiKey(providerId: string): Promise<void>
-  // TODO: hasApiKey(providerId: string): Promise<boolean>
+  constructor(private readonly secretStorage: vscode.SecretStorage) {}
+
+  async getApiKey(providerId: string): Promise<string | undefined> {
+    return this.secretStorage.get(storageKey(providerId));
+  }
+
+  async setApiKey(providerId: string, key: string): Promise<void> {
+    await this.secretStorage.store(storageKey(providerId), key);
+  }
+
+  async deleteApiKey(providerId: string): Promise<void> {
+    await this.secretStorage.delete(storageKey(providerId));
+  }
+
+  async hasApiKey(providerId: string): Promise<boolean> {
+    const key = await this.getApiKey(providerId);
+    return key !== undefined && key !== "";
+  }
 }

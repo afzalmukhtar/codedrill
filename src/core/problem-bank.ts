@@ -66,9 +66,59 @@ export class ProblemBank {
       totalImported += count;
     }
 
+    await this.initializeSystemDesign();
+
     const total = this._repository.getProblemCount();
     console.log(`[ProblemBank] Initialized with ${total} problems (${totalImported} newly imported) from ${listFiles.join(", ")}`);
     return totalImported;
+  }
+
+  /**
+   * Import system design topics from bundled system-design.json.
+   * Inserts each topic if it doesn't already exist (checked by title).
+   */
+  async initializeSystemDesign(): Promise<number> {
+    const listUri = vscode.Uri.joinPath(
+      this._extensionUri, "dist", "lists", "system-design.json",
+    );
+
+    let list: { name: string; topics: Array<{ title: string; category: string; description: string; keyConcepts?: string[]; followUps?: string[]; source?: string }> };
+    try {
+      const bytes = await vscode.workspace.fs.readFile(listUri);
+      list = JSON.parse(Buffer.from(bytes).toString("utf-8")) as typeof list;
+    } catch (err) {
+      console.warn(`[ProblemBank] Could not load system-design.json:`, err);
+      return 0;
+    }
+
+    const existing = this._repository.getSystemDesignTopics();
+    const existingTitles = new Set(existing.map((t) => t.title));
+    let imported = 0;
+
+    this._repository.beginBatch();
+    try {
+      for (const topic of list.topics) {
+        if (existingTitles.has(topic.title)) { continue; }
+
+        await this._repository.insertSystemDesignTopic({
+          title: topic.title,
+          category: topic.category,
+          description: topic.description,
+          keyConcepts: topic.keyConcepts ?? [],
+          followUps: topic.followUps ?? [],
+          source: topic.source ?? list.name ?? null,
+        });
+        existingTitles.add(topic.title);
+        imported++;
+      }
+    } finally {
+      await this._repository.endBatch();
+    }
+
+    if (imported > 0) {
+      console.log(`[ProblemBank] Imported ${imported} system design topics from system-design.json`);
+    }
+    return imported;
   }
 
   private async _fileExists(filename: string): Promise<boolean> {
@@ -101,53 +151,56 @@ export class ProblemBank {
     const listName = filename.replace(".json", "");
     let imported = 0;
 
-    for (const entry of list.problems) {
-      const existing = this._repository.getProblemBySlug(entry.slug);
-      if (existing) {
-        // Backfill pattern, companies, and leetcodeId for existing records
-        const updates: Partial<Problem> = {};
-        if (!existing.pattern && (entry.pattern || entry.category)) {
-          updates.pattern = entry.pattern || entry.category;
-        }
-        if (entry.companies?.length && (!existing.companies || existing.companies.length === 0)) {
-          updates.companies = entry.companies;
-        } else if (entry.companies?.length && existing.companies?.length) {
-          // Merge company lists
-          const merged = Array.from(new Set([...existing.companies, ...entry.companies])).sort();
-          if (merged.length > existing.companies.length) {
-            updates.companies = merged;
+    this._repository.beginBatch();
+    try {
+      for (const entry of list.problems) {
+        const existing = this._repository.getProblemBySlug(entry.slug);
+        if (existing) {
+          const updates: Partial<Problem> = {};
+          if (!existing.pattern && (entry.pattern || entry.category)) {
+            updates.pattern = entry.pattern || entry.category;
           }
+          if (entry.companies?.length && (!existing.companies || existing.companies.length === 0)) {
+            updates.companies = entry.companies;
+          } else if (entry.companies?.length && existing.companies?.length) {
+            const merged = Array.from(new Set([...existing.companies, ...entry.companies])).sort();
+            if (merged.length > existing.companies.length) {
+              updates.companies = merged;
+            }
+          }
+          if (!existing.leetcodeId && entry.leetcodeId) {
+            updates.leetcodeId = entry.leetcodeId;
+          }
+          if (Object.keys(updates).length > 0) {
+            await this._repository.updateProblem(entry.slug, updates);
+          }
+          continue;
         }
-        if (!existing.leetcodeId && entry.leetcodeId) {
-          updates.leetcodeId = entry.leetcodeId;
-        }
-        if (Object.keys(updates).length > 0) {
-          await this._repository.updateProblem(entry.slug, updates);
-        }
-        continue;
-      }
 
-      await this._repository.insertProblem({
-        slug: entry.slug,
-        title: entry.title,
-        difficulty: entry.difficulty,
-        category: entry.category,
-        tags: [],
-        description: "",
-        examples: [],
-        constraints: "",
-        testCases: [],
-        hints: [],
-        solutionCode: null,
-        sourceList: entry.sources?.join(",") || listName,
-        leetcodeId: entry.leetcodeId ?? null,
-        pattern: entry.pattern || entry.category,
-        companies: entry.companies ?? [],
-      });
-      imported++;
+        await this._repository.insertProblem({
+          slug: entry.slug,
+          title: entry.title,
+          difficulty: entry.difficulty,
+          category: entry.category,
+          tags: [],
+          description: "",
+          examples: [],
+          constraints: "",
+          testCases: [],
+          hints: [],
+          solutionCode: null,
+          sourceList: entry.sources?.join(",") || listName,
+          leetcodeId: entry.leetcodeId ?? null,
+          pattern: entry.pattern || entry.category,
+          companies: entry.companies ?? [],
+        });
+        imported++;
+      }
+    } finally {
+      await this._repository.endBatch();
     }
 
-    console.log(`[ProblemBank] Imported ${imported} problems from ${filename}`);
+    console.log(`[ProblemBank] Imported ${imported} problems from ${filename} (${list.problems.length} total entries)`);
     return imported;
   }
 

@@ -12,13 +12,37 @@
  * - Provide model metadata (context window, cost, local/cloud)
  */
 
-// import { ModelInfo } from "./providers/types";
+import type { ModelInfo } from "./providers/types";
+import type { LLMRouter } from "./llm-router";
 
 export class ModelRegistry {
-  // TODO: refreshModels(): Promise<ModelInfo[]>
-  // TODO: getCachedModels(): ModelInfo[]
-  // TODO: getModelById(id: string): ModelInfo | undefined
-  // TODO: getModelsByProvider(providerId: string): ModelInfo[]
-  // TODO: setDefaultModel(modelId: string): void
-  // TODO: getDefaultModel(): string
+  private _cachedModels: ModelInfo[] = [];
+  private _defaultModel: string = "";
+
+  constructor(private readonly router: LLMRouter) {}
+
+  async refreshModels(): Promise<ModelInfo[]> {
+    this._cachedModels = this.router.getAvailableModels();
+    return this._cachedModels;
+  }
+
+  getCachedModels(): ModelInfo[] {
+    return this._cachedModels;
+  }
+
+  getModelById(id: string): ModelInfo | undefined {
+    return this._cachedModels.find((m) => m.id === id);
+  }
+
+  getModelsByProvider(providerId: string): ModelInfo[] {
+    return this._cachedModels.filter((m) => m.provider === providerId);
+  }
+
+  setDefaultModel(modelId: string): void {
+    this._defaultModel = modelId;
+  }
+
+  getDefaultModel(): string {
+    return this._defaultModel;
+  }
 }

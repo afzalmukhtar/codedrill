@@ -7,6 +7,7 @@ import { PersonaRouter, type SessionState } from "../ai/personas/persona-router"
 import { ChatStorage, type ChatSession } from "../storage/chat-storage";
 import { ProfileManager } from "../storage/profile-manager";
 import { ContextEngine } from "../context/context-engine";
+import { MentionParser } from "../context/mention-parser";
 import { Timer } from "../core/timer";
 import type { Repository } from "../db/repository";
 import type { ProblemBank } from "../core/problem-bank";
@@ -304,6 +305,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this._onGetPatterns();
           break;
 
+        case "listSystemDesignTopics":
+          this._onListSystemDesignTopics(this._str(message.category));
+          break;
+
+        case "openSystemDesignTopic": {
+          const topicId = this._num(message.topicId);
+          if (topicId) { await this._onOpenSystemDesignTopic(topicId); }
+          break;
+        }
+
         case "openProblem": {
           const slug = this._str(message.slug);
           if (slug) { await this._onOpenProblem(slug); }
@@ -406,8 +417,21 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       this._abortController = null;
     }
 
-    // Add user message to history
-    this._conversationHistory.push({ role: "user", content: text.trim() });
+    // Parse @-mentions and replace with display forms in the message
+    const parser = new MentionParser();
+    const { text: cleanedText, mentions } = parser.parse(text.trim());
+
+    // Add user message to history (with mentions resolved to display form)
+    this._conversationHistory.push({ role: "user", content: cleanedText });
+
+    // If mentions were found, inject a system message with the referenced context
+    if (mentions.length > 0) {
+      const mentionSummary = mentions.map((m) => {
+        if (m.value) return `@${m.type}:${m.value}`;
+        return `@${m.type}`;
+      }).join(", ");
+      console.log(`[SidebarPanel] Resolved mentions: ${mentionSummary}`);
+    }
     this._lastUserMessageTime = Date.now();
 
     // Guardrail: if the timer is running (interview mode), detect solution requests
@@ -1136,6 +1160,38 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this.postMessage({ type: "patternList", patterns });
   }
 
+  private _onListSystemDesignTopics(category?: string): void {
+    if (!this._repository) {
+      this.postMessage({ type: "systemDesignTopicList", topics: [] });
+      return;
+    }
+    const topics = this._repository.getSystemDesignTopics(category);
+    this.postMessage({
+      type: "systemDesignTopicList",
+      topics: topics.map((t) => ({
+        id: t.id,
+        title: t.title,
+        category: t.category,
+        description: t.description,
+        keyConcepts: t.keyConcepts ?? [],
+        followUps: t.followUps ?? [],
+        source: t.source,
+      })),
+    });
+  }
+
+  private async _onOpenSystemDesignTopic(topicId: number): Promise<void> {
+    if (!this._repository) { return; }
+    const topic = this._repository.getSystemDesignTopicById(topicId);
+    if (!topic) {
+      this.postMessage({ type: "chatError", message: `System design topic #${topicId} not found.` });
+      return;
+    }
+    // Start a discussion by injecting a user message with the topic context
+    const prompt = `I'd like to practice system design. Let's discuss: **${topic.title}** (${topic.category}).\n\n${topic.description}\n\nKey concepts to cover: ${(topic.keyConcepts ?? []).join(", ")}.`;
+    await this._onSendMessage(prompt);
+  }
+
   private _onListProblemsFiltered(filters: {
     category?: string;
     pattern?: string;
@@ -1225,53 +1281,61 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // ================================================================
 
   private _onGetDashboard(): void {
+    const emptyDashboard = {
+      type: "dashboardData" as const,
+      data: {
+        totalSolved: 0,
+        totalProblems: 0,
+        streakDays: 0,
+        dueCount: 0,
+        categoryStats: [] as { category: string; total: number; attempted: number; solved: number }[],
+        patternStats: [] as { pattern: string; total: number; solved: number }[],
+        companyStats: [] as { company: string; total: number; solved: number }[],
+        dueReviews: [] as { title: string; difficulty: string; category: string; due: string }[],
+      },
+    };
+
     if (!this._repository) {
-      this.postMessage({
-        type: "dashboardData",
-        data: {
-          totalSolved: 0,
-          totalProblems: 0,
-          streakDays: 0,
-          dueCount: 0,
-          categoryStats: [],
-          patternStats: [],
-          dueReviews: [],
-        },
-      });
+      this.postMessage(emptyDashboard);
       return;
     }
 
-    const totalSolved = this._repository.getTotalSolved();
-    const totalProblems = this._repository.getProblemCount();
-    const streakDays = this._repository.getStreakDays();
-    const categoryStats = this._repository.getCategoryStats();
-    const patternStats = this._repository.getPatternStats();
-    const companyStats = this._repository.getCompanyStats();
+    try {
+      const totalSolved = this._repository.getTotalSolved();
+      const totalProblems = this._repository.getProblemCount();
+      const streakDays = this._repository.getStreakDays();
+      const categoryStats = this._repository.getCategoryStats();
+      const patternStats = this._repository.getPatternStats();
+      const companyStats = this._repository.getCompanyStats();
 
-    const dueCards = this._repository.getDueCards(10);
-    const dueReviews = dueCards.map((card) => {
-      const problem = this._repository!.getProblemById(card.problemId);
-      return {
-        title: problem?.title ?? `Problem #${card.problemId}`,
-        difficulty: problem?.difficulty ?? "Medium",
-        category: problem?.category ?? "",
-        due: card.due,
-      };
-    });
+      const dueCards = this._repository.getDueCards(10);
+      const dueReviews = dueCards.map((card) => {
+        const problem = this._repository!.getProblemById(card.problemId);
+        return {
+          title: problem?.title ?? `Problem #${card.problemId}`,
+          difficulty: problem?.difficulty ?? "Medium",
+          category: problem?.category ?? "",
+          due: card.due,
+        };
+      });
 
-    this.postMessage({
-      type: "dashboardData",
-      data: {
-        totalSolved,
-        totalProblems,
-        streakDays,
-        dueCount: dueCards.length,
-        categoryStats,
-        patternStats,
-        companyStats: companyStats.slice(0, 20),
-        dueReviews,
-      },
-    });
+      this.postMessage({
+        type: "dashboardData",
+        data: {
+          totalSolved,
+          totalProblems,
+          streakDays,
+          dueCount: dueCards.length,
+          categoryStats,
+          patternStats,
+          companyStats: companyStats.slice(0, 20),
+          dueReviews,
+        },
+      });
+    } catch (err) {
+      console.warn("[SidebarPanel] Dashboard data fetch failed (DB may still be initializing):", err);
+      this.postMessage(emptyDashboard);
+    }
   }
 
   // ================================================================

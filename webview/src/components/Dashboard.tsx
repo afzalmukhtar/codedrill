@@ -64,7 +64,22 @@ export function Dashboard({ onClose }: DashboardProps) {
           <span className="dashboard-title">Dashboard</span>
           <button type="button" className="dashboard-close" onClick={onClose}>x</button>
         </div>
-        <div className="dashboard-loading">Loading stats...</div>
+        <div className="dashboard-loading">Loading stats&hellip;</div>
+      </div>
+    );
+  }
+
+  if (data.totalProblems === 0 && data.totalSolved === 0) {
+    return (
+      <div className="dashboard">
+        <div className="dashboard-header">
+          <span className="dashboard-title">Dashboard</span>
+          <button type="button" className="dashboard-close" onClick={onClose}>x</button>
+        </div>
+        <div className="dashboard-empty-state">
+          <p>No stats yet.</p>
+          <p className="dashboard-empty-hint">Start a practice session to see your progress here.</p>
+        </div>
       </div>
     );
   }

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import initSqlJs, { type Database } from "sql.js";
-import type { Problem, ReviewCard, Attempt, Session } from "./schema";
+import type { Problem, ReviewCard, Attempt, Session, SystemDesignTopic } from "./schema";
 
 const CODEDRILL_DIR = ".codedrill";
 const DB_FILENAME = "codedrill.db";
@@ -99,7 +99,21 @@ export class Repository {
     }
   }
 
+  private _batchMode = false;
+
+  /**
+   * Suppress auto-persist during bulk operations.
+   * Call `endBatch()` when done to write once.
+   */
+  beginBatch(): void { this._batchMode = true; }
+
+  async endBatch(): Promise<void> {
+    this._batchMode = false;
+    await this.persist();
+  }
+
   async persist(): Promise<void> {
+    if (this._batchMode) { return; }
     if (!this._db || !this._dbUri) { return; }
     const data = this._db.export();
     await vscode.workspace.fs.writeFile(this._dbUri, data);
@@ -607,5 +621,72 @@ export class Repository {
       attempted: v[2] as number,
       solved: v[3] as number,
     }));
+  }
+
+  // ================================================================
+  // System Design Topics
+  // ================================================================
+
+  async insertSystemDesignTopic(t: Omit<SystemDesignTopic, "id">): Promise<number> {
+    this.db.run(
+      `INSERT INTO system_design_topics (title, category, description, key_concepts, follow_ups, source)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        t.title,
+        t.category,
+        t.description,
+        JSON.stringify(t.keyConcepts ?? []),
+        JSON.stringify(t.followUps ?? []),
+        t.source ?? null,
+      ],
+    );
+    const result = this.db.exec("SELECT last_insert_rowid() as id");
+    const id = (result[0]?.values[0]?.[0] as number) ?? 0;
+    await this.persist();
+    return id;
+  }
+
+  getSystemDesignTopics(category?: string): SystemDesignTopic[] {
+    let sql = "SELECT * FROM system_design_topics";
+    const params: unknown[] = [];
+    if (category) {
+      sql += " WHERE category = ?";
+      params.push(category);
+    }
+    sql += " ORDER BY category, title";
+    const rows = this.db.exec(sql, params);
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => this._rowToSystemDesignTopic(rows[0].columns, v));
+  }
+
+  getSystemDesignTopicById(id: number): SystemDesignTopic | null {
+    const rows = this.db.exec("SELECT * FROM system_design_topics WHERE id = ? LIMIT 1", [id]);
+    if (!rows[0] || rows[0].values.length === 0) { return null; }
+    return this._rowToSystemDesignTopic(rows[0].columns, rows[0].values[0]);
+  }
+
+  getSystemDesignCategories(): string[] {
+    const rows = this.db.exec("SELECT DISTINCT category FROM system_design_topics ORDER BY category");
+    if (!rows[0]) { return []; }
+    return rows[0].values.map((v) => v[0] as string);
+  }
+
+  getSystemDesignTopicCount(): number {
+    const rows = this.db.exec("SELECT COUNT(*) FROM system_design_topics");
+    return (rows[0]?.values[0]?.[0] as number) ?? 0;
+  }
+
+  private _rowToSystemDesignTopic(cols: string[], vals: unknown[]): SystemDesignTopic {
+    const obj: Record<string, unknown> = {};
+    cols.forEach((c, i) => { obj[c] = vals[i]; });
+    return {
+      id: obj.id as number,
+      title: obj.title as string,
+      category: obj.category as string,
+      description: obj.description as string,
+      keyConcepts: JSON.parse((obj.key_concepts as string) || "[]"),
+      followUps: JSON.parse((obj.follow_ups as string) || "[]"),
+      source: (obj.source as string) || null,
+    };
   }
 }
