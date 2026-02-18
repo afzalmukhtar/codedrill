@@ -1,17 +1,15 @@
 /**
  * Persona Router
  *
- * Routes user messages to the appropriate AI persona based on
- * the current mode AND the live session state.
+ * Routes user messages to the appropriate AI persona.
  *
- * Auto-switching rules (override user-selected mode):
- * - Timer running + active session -> Interviewer
- * - User gave up during active session -> Teacher
- * - No active session -> use selected mode
+ * Hard override rules (cannot be bypassed by user mode selection):
+ * - Timer running -> Interviewer (ALWAYS, no exceptions)
+ * - User gave up  -> Teacher    (ALWAYS, no exceptions)
+ * - Otherwise     -> user's selected mode (Interview or Teach)
  */
 
 import * as vscode from "vscode";
-import { AgentPersona } from "./agent";
 import { InterviewerPersona } from "./interviewer";
 import type { PromptContext } from "./prompt-loader";
 import { TeacherPersona } from "./teacher";
@@ -23,12 +21,10 @@ export interface SessionState {
 }
 
 export class PersonaRouter {
-  private readonly agent: AgentPersona;
   private readonly interviewer: InterviewerPersona;
   private readonly teacher: TeacherPersona;
 
   constructor(extensionUri: vscode.Uri) {
-    this.agent = new AgentPersona(extensionUri);
     this.interviewer = new InterviewerPersona(extensionUri);
     this.teacher = new TeacherPersona(extensionUri);
   }
@@ -36,11 +32,9 @@ export class PersonaRouter {
   /**
    * Resolve the effective persona and return the system prompt.
    *
-   * When a session is active, the router overrides the user-selected
-   * mode to enforce the interview flow:
-   *   - Timer running -> Interviewer (Socratic hints only)
-   *   - User gave up -> Teacher (full explanation)
-   *   - Otherwise -> selected mode
+   * Timer running is the ABSOLUTE override -- even if the user somehow
+   * selects a different mode, the LLM always gets the interviewer prompt
+   * while the clock is ticking.
    */
   async getPromptForMode(
     mode: string,
@@ -53,29 +47,26 @@ export class PersonaRouter {
       case "teach":
         return this.teacher.buildSystemPrompt(context);
       case "interview":
-        return this.interviewer.buildSystemPrompt(context);
-      case "agent":
       default:
-        return this.agent.buildSystemPrompt(context);
+        return this.interviewer.buildSystemPrompt(context);
     }
   }
 
   /**
-   * Determine the effective mode after applying session-state overrides.
+   * Hard override logic. Timer running and gaveUp take absolute precedence.
    */
   private _resolveMode(selectedMode: string, sessionState?: SessionState): string {
-    if (!sessionState?.isActive) {
-      return selectedMode;
-    }
-
-    if (sessionState.gaveUp) {
+    // Gave up overrides everything -- teacher must explain
+    if (sessionState?.gaveUp) {
       return "teach";
     }
 
-    if (sessionState.timerRunning) {
+    // Timer running overrides everything -- interviewer only
+    if (sessionState?.timerRunning) {
       return "interview";
     }
 
-    return selectedMode;
+    // No active constraints -- respect user selection
+    return selectedMode === "teach" ? "teach" : "interview";
   }
 }

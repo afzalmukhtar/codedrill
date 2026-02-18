@@ -18,7 +18,7 @@ interface TimerProps {
   /** Suggested duration from problem difficulty (pre-fills the input). */
   timerDurationMs?: number;
   /** Current drill mode -- shown as a role badge when the timer is active. */
-  mode?: "agent" | "teach" | "interview";
+  mode?: "teach" | "interview";
 }
 
 /**
@@ -98,7 +98,7 @@ export function Timer({ timerDurationMs, mode }: TimerProps) {
   const seconds = formatSeconds(displayMs);
   const isExpired = isRunning && remainingMs <= 0;
 
-  const roleBadge = isRunning && mode && mode !== "agent" ? (
+  const roleBadge = mode ? (
     <div className={`role-badge role-badge--${mode}`}>
       {mode === "interview" ? "Interviewer" : "Teacher"}
     </div>

@@ -73,7 +73,7 @@ export interface ModelInfo {
   provider: string;
 }
 
-export type DrillMode = "agent" | "teach" | "interview";
+export type DrillMode = "teach" | "interview";
 
 export interface ChatSummary {
   id: string;
@@ -91,7 +91,6 @@ export interface ContextBadge {
 }
 
 const MODE_LABELS: Record<DrillMode, string> = {
-  agent: "Agent",
   teach: "Teach",
   interview: "Interview",
 };
@@ -133,7 +132,11 @@ function AppContent() {
     () => persisted.current?.selectedModel ?? ""
   );
   const [mode, setMode] = useState<DrillMode>(
-    () => persisted.current?.mode ?? "agent"
+    () => {
+      const saved = persisted.current?.mode;
+      if (saved === "teach" || saved === "interview") return saved;
+      return "interview";
+    }
   );
   const [activeChatId, setActiveChatId] = useState<string | null>(
     () => persisted.current?.activeChatId ?? null
@@ -285,8 +288,8 @@ function AppContent() {
           };
           setActiveChatId(loaded.chatId);
           setMessages(loaded.messages);
-          if (loaded.mode) {
-            setMode(loaded.mode as DrillMode);
+          if (loaded.mode === "teach" || loaded.mode === "interview") {
+            setMode(loaded.mode);
           }
           setShowHistory(false);
           break;
@@ -352,8 +355,10 @@ function AppContent() {
           break;
 
         case "modeOverride": {
-          const newMode = message.mode as DrillMode;
-          if (newMode) { setMode(newMode); }
+          const incoming = message.mode as string;
+          if (incoming === "teach" || incoming === "interview") {
+            setMode(incoming);
+          }
           break;
         }
 

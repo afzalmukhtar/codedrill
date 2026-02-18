@@ -26,7 +26,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private _view?: vscode.WebviewView;
   private _selectedModel: string = "";
-  private _mode: string = "agent";
+  private _mode: string = "interview";
   private _conversationHistory: ChatMessage[] = [];
   private _activeChatId: string | null = null;
   private _chatCreatedAt: number | null = null;
@@ -66,7 +66,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private _sessionTimeSpent: string | null = null;
 
   /** The user's manually selected mode before a session overrode it. */
-  private _preSessionMode: string = "agent";
+  private _preSessionMode: string = "interview";
 
   /** Countdown timer (lives in extension host, survives webview recreation). */
   private readonly _timer = new Timer();
@@ -180,9 +180,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         this._selectedModel = message.modelId as string;
         break;
 
-      case "setMode":
-        this._mode = (message.mode as string) || "agent";
+      case "setMode": {
+        const incoming = (message.mode as string) || "interview";
+        this._mode = (incoming === "teach" || incoming === "interview") ? incoming : "interview";
         break;
+      }
 
       case "newChat":
         this._onNewChat();

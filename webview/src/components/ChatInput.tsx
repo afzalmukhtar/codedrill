@@ -3,12 +3,11 @@ import { ModelSelector } from "./ModelSelector";
 import type { ModelInfo, DrillMode, ContextBadge } from "../App";
 
 const MODE_LABELS: Record<DrillMode, string> = {
-  agent: "Agent",
   teach: "Teach",
   interview: "Interview",
 };
 
-const MODE_ORDER: DrillMode[] = ["agent", "teach", "interview"];
+const MODE_ORDER: DrillMode[] = ["interview", "teach"];
 
 interface ChatInputProps {
   onSend: (text: string) => void;
