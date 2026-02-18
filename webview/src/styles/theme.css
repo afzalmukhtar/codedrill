@@ -52,47 +52,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   gap: 10px;
   padding: 10px 12px 8px;
   border-bottom: 1px solid var(--codedrill-border);
 }
 
-.sidebar-header-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
 .sidebar-title {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-}
-
-.sidebar-subtitle {
-  margin-top: 1px;
-  font-size: 11px;
-  color: var(--codedrill-muted);
-}
-
-.sidebar-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  color: var(--codedrill-fg);
 }
 
 .sidebar-action {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: 1px solid var(--codedrill-subtle);
   border-radius: 6px;
   background: transparent;
   color: var(--codedrill-muted);
   display: grid;
   place-items: center;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 300;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .sidebar-action:hover {
@@ -100,10 +86,53 @@ body {
   border-color: var(--codedrill-border);
 }
 
-.sidebar-action--active {
+/* ── Toolbar: always-visible navigation ── */
+.sidebar-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--codedrill-border);
+}
+
+.toolbar-btn {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--codedrill-subtle);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--codedrill-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toolbar-btn:hover {
+  color: var(--codedrill-fg);
+  border-color: var(--codedrill-border);
+}
+
+.toolbar-btn--active {
   color: var(--codedrill-accent);
   border-color: var(--codedrill-accent);
   background: var(--codedrill-focus-ring);
+}
+
+.toolbar-btn--primary {
+  color: var(--codedrill-bg);
+  background: var(--codedrill-accent);
+  border-color: var(--codedrill-accent);
+  font-weight: 600;
+}
+
+.toolbar-btn--primary:hover {
+  opacity: 0.9;
+  color: var(--codedrill-bg);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .model-selector {

@@ -468,45 +468,48 @@ function AppContent() {
     <VscodeContext.Provider value={{ postMessage: vscodeApi.postMessage }}>
       <div className="sidebar-container">
         <header className="sidebar-header">
-          <div className="sidebar-header-text">
-            <span className="sidebar-title">CodeDrill</span>
-            <span className="sidebar-subtitle">{MODE_LABELS[mode]}</span>
-          </div>
-          <div className="sidebar-actions" aria-label="Sidebar actions">
-            <button
-              type="button"
-              className={`sidebar-action${showDashboard ? " sidebar-action--active" : ""}`}
-              title="Dashboard"
-              onClick={() => { setShowDashboard((p) => !p); setShowHistory(false); setShowProblems(false); }}
-            >
-              ◈
-            </button>
-            <button
-              type="button"
-              className={`sidebar-action${showProblems ? " sidebar-action--active" : ""}`}
-              title="Browse problems"
-              onClick={() => { setShowProblems((p) => !p); setShowHistory(false); setShowDashboard(false); }}
-            >
-              ☰
-            </button>
-            <button
-              type="button"
-              className={`sidebar-action${showHistory ? " sidebar-action--active" : ""}`}
-              title="Chat history"
-              onClick={handleShowHistory}
-            >
-              ↺
-            </button>
-            <button
-              type="button"
-              className="sidebar-action"
-              title="New chat"
-              onClick={handleNewChat}
-            >
-              ✎
-            </button>
-          </div>
+          <span className="sidebar-title">CODEDRILL</span>
+          <button
+            type="button"
+            className="sidebar-action"
+            title="New chat"
+            onClick={handleNewChat}
+          >
+            +
+          </button>
         </header>
+
+        <nav className="sidebar-toolbar">
+          <button
+            type="button"
+            className="toolbar-btn toolbar-btn--primary"
+            onClick={handleStartSession}
+            disabled={sessionLoading}
+          >
+            Practice
+          </button>
+          <button
+            type="button"
+            className={`toolbar-btn${showProblems ? " toolbar-btn--active" : ""}`}
+            onClick={() => { setShowProblems((p) => !p); setShowHistory(false); setShowDashboard(false); }}
+          >
+            Problems
+          </button>
+          <button
+            type="button"
+            className={`toolbar-btn${showHistory ? " toolbar-btn--active" : ""}`}
+            onClick={handleShowHistory}
+          >
+            History
+          </button>
+          <button
+            type="button"
+            className={`toolbar-btn${showDashboard ? " toolbar-btn--active" : ""}`}
+            onClick={() => { setShowDashboard((p) => !p); setShowHistory(false); setShowProblems(false); }}
+          >
+            Stats
+          </button>
+        </nav>
 
         <Timer timerDurationMs={activeProblem?.timerDurationMs} mode={mode} />
 
@@ -602,14 +605,7 @@ function AppContent() {
             <div className="chat-welcome">
               <div className="chat-welcome-glyph">&#x25CE;</div>
               <h3>Welcome to CodeDrill</h3>
-              <p>Ask a question to get started with your interview practice.</p>
-              <button
-                type="button"
-                className="session-start-btn"
-                onClick={handleStartSession}
-              >
-                Start Practice Session
-              </button>
+              <p>Click <strong>Practice</strong> to start a session, or just type a question below.</p>
             </div>
           </div>
         ) : (
