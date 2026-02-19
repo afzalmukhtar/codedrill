@@ -19,6 +19,9 @@ codedrill.config.json
 # User data directory (chat history, database, profile)
 .codedrill/
 
+# Practice workspace (user-generated solutions)
+codedrill-practice/
+
 # Environment variables
 .env
 .env.local
@@ -40,8 +43,11 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
-# WASM artifacts (sql.js downloads at runtime)
+# WASM artifacts
 *.wasm
+
+# Source maps
+*.map
 
 # Logs
 *.log

@@ -26,11 +26,6 @@ coverage/**
 # Build/dev scripts
 scripts/**
 
-# Documentation (dev-only)
-PRD.md
-BUGS.md
-PLAN.md
-
 # User-specific config (example is included instead)
 codedrill.config.json
 
