@@ -175,21 +175,21 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private async _handleMessage(message: { type: string; [key: string]: unknown }): Promise<void> {
     try {
-      switch (message.type) {
-        case "ready":
-          await this._onReady();
-          break;
+    switch (message.type) {
+      case "ready":
+        await this._onReady();
+        break;
 
         case "sendMessage": {
           const text = this._str(message.text);
           if (!text) { return; }
           await this._onSendMessage(text);
-          break;
+        break;
         }
 
         case "interrupt":
           this._onInterrupt();
-          break;
+        break;
 
         case "selectModel": {
           const modelId = this._str(message.modelId);
@@ -290,9 +290,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           break;
         }
 
-        case "configureProviders":
-          await this._onConfigureProviders();
-          break;
+      case "configureProviders":
+        await this._onConfigureProviders();
+        break;
 
         case "listProblems":
           this._onListProblems(this._str(message.category));
@@ -363,8 +363,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           break;
         }
 
-        default:
-          break;
+      default:
+        break;
       }
     } catch (err) {
       console.error(`[SidebarPanel] Error handling message "${message.type}":`, err);
@@ -578,7 +578,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       if (abortController.signal.aborted) {
         this.postMessage({ type: "chatInterrupted" });
       } else {
-        this.postMessage({ type: "chatDone" });
+      this.postMessage({ type: "chatDone" });
       }
 
       // Track hint usage: when the user asks the interviewer a question during an active session
