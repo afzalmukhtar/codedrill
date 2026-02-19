@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useVscode } from "../App";
+import { IconClose } from "./Icons";
 
 interface CategoryStat {
   category: string;
@@ -62,7 +63,7 @@ export function Dashboard({ onClose }: DashboardProps) {
       <div className="dashboard">
         <div className="dashboard-header">
           <span className="dashboard-title">Dashboard</span>
-          <button type="button" className="dashboard-close" onClick={onClose}>x</button>
+          <button type="button" className="dashboard-close" onClick={onClose} title="Close"><IconClose size={14} /></button>
         </div>
         <div className="dashboard-loading">Loading stats&hellip;</div>
       </div>
@@ -74,7 +75,7 @@ export function Dashboard({ onClose }: DashboardProps) {
       <div className="dashboard">
         <div className="dashboard-header">
           <span className="dashboard-title">Dashboard</span>
-          <button type="button" className="dashboard-close" onClick={onClose}>x</button>
+          <button type="button" className="dashboard-close" onClick={onClose} title="Close"><IconClose size={14} /></button>
         </div>
         <div className="dashboard-empty-state">
           <p>No stats yet.</p>
@@ -92,7 +93,7 @@ export function Dashboard({ onClose }: DashboardProps) {
     <div className="dashboard">
       <div className="dashboard-header">
         <span className="dashboard-title">Dashboard</span>
-        <button type="button" className="dashboard-close" onClick={onClose}>x</button>
+        <button type="button" className="dashboard-close" onClick={onClose} title="Close"><IconClose size={14} /></button>
       </div>
 
       <div className="dashboard-stats-row">

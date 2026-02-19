@@ -28,6 +28,10 @@ export interface PromptContext {
   gaveUp?: string;
   problemPattern?: string;
   problemCompanies?: string;
+  resumeText?: string;
+  resumeJson?: string;
+  topicDescription?: string;
+  keyConcepts?: string;
 }
 
 const templateCache = new Map<string, string>();
@@ -57,6 +61,10 @@ const TEMPLATE_VARIABLES: Record<keyof PromptContext, string> = {
   gaveUp: "GAVE_UP",
   problemPattern: "PROBLEM_PATTERN",
   problemCompanies: "PROBLEM_COMPANIES",
+  resumeText: "RESUME_TEXT",
+  resumeJson: "RESUME_JSON",
+  topicDescription: "TOPIC_DESCRIPTION",
+  keyConcepts: "KEY_CONCEPTS",
 };
 
 /**

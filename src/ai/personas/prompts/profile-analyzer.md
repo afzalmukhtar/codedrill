@@ -72,6 +72,7 @@ Return ONLY the Markdown below. Replace placeholder values with your observation
 - If you have insufficient evidence for a section, include the header with a single bullet: `- Not enough data yet`.
 - Do NOT include conversation excerpts or quotes.
 - Do NOT include the wrapping triple-backtick fences in your output -- output raw Markdown only.
+- If the existing profile contains `## Resume Summary`, `## Tech Stack`, `## Domains`, or `## System Design Experience` sections, PRESERVE them exactly as-is. These are populated from a separate resume analysis pipeline and must not be altered.
 
 <current_profile>
 {{EXISTING_PROFILE}}

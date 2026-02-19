@@ -6,6 +6,8 @@ import { RatingPanel } from "./components/RatingPanel";
 import { SessionLoader, type SessionProgress } from "./components/SessionLoader";
 import { ProblemBrowser } from "./components/ProblemBrowser";
 import { Dashboard } from "./components/Dashboard";
+import { ProfilePanel } from "./components/ProfilePanel";
+import { IconNewChat, IconTrash, IconDownload, IconClose, IconEye, IconFlag } from "./components/Icons";
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -150,7 +152,9 @@ function AppContent() {
   const [gaveUp, setGaveUp] = useState(false);
   const [showProblems, setShowProblems] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [ratingConfirmation, setRatingConfirmation] = useState<string | null>(null);
+  const [exportToast, setExportToast] = useState<string | null>(null);
   const [activeProblem, setActiveProblem] = useState<{
     title: string;
     difficulty: string;
@@ -168,6 +172,13 @@ function AppContent() {
 
   // Keep ref in sync with state (for use in event handler closures)
   useEffect(() => { activeProblemRef.current = activeProblem; }, [activeProblem]);
+
+  // Auto-dismiss export toast
+  useEffect(() => {
+    if (!exportToast) return;
+    const t = setTimeout(() => setExportToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [exportToast]);
 
   // Persist state whenever key values change
   useEffect(() => {
@@ -309,12 +320,9 @@ function AppContent() {
           break;
 
         case "exportChatResult": {
-          const exported = message.content as string | null;
-          if (exported) {
-            navigator.clipboard.writeText(exported).then(
-              () => console.log("[CodeDrill] Chat exported to clipboard"),
-              () => console.warn("[CodeDrill] Failed to copy to clipboard"),
-            );
+          const exportSuccess = (message as { success?: boolean }).success;
+          if (exportSuccess) {
+            setExportToast("Chat exported successfully");
           }
           break;
         }
@@ -452,6 +460,7 @@ function AppContent() {
     setShowHistory((prev) => !prev);
     setShowProblems(false);
     setShowDashboard(false);
+    setShowProfile(false);
   }, []);
 
   const handleHistorySearch = useCallback((query: string) => {
@@ -514,7 +523,7 @@ function AppContent() {
             title="New chat"
             onClick={handleNewChat}
           >
-            +
+            <IconNewChat size={16} />
           </button>
         </header>
 
@@ -530,7 +539,7 @@ function AppContent() {
           <button
             type="button"
             className={`toolbar-btn${showProblems ? " toolbar-btn--active" : ""}`}
-            onClick={() => { setShowProblems((p) => !p); setShowHistory(false); setShowDashboard(false); }}
+            onClick={() => { setShowProblems((p) => !p); setShowHistory(false); setShowDashboard(false); setShowProfile(false); }}
           >
             Problems
           </button>
@@ -544,9 +553,16 @@ function AppContent() {
           <button
             type="button"
             className={`toolbar-btn${showDashboard ? " toolbar-btn--active" : ""}`}
-            onClick={() => { setShowDashboard((p) => !p); setShowHistory(false); setShowProblems(false); }}
+            onClick={() => { setShowDashboard((p) => !p); setShowHistory(false); setShowProblems(false); setShowProfile(false); }}
           >
             Stats
+          </button>
+          <button
+            type="button"
+            className={`toolbar-btn${showProfile ? " toolbar-btn--active" : ""}`}
+            onClick={() => { setShowProfile((p) => !p); setShowHistory(false); setShowProblems(false); setShowDashboard(false); }}
+          >
+            Profile
           </button>
         </nav>
 
@@ -569,14 +585,14 @@ function AppContent() {
               className="view-problem-btn"
               onClick={() => vscodeApi.postMessage({ type: "viewProblem" })}
             >
-              View Problem
+              <IconEye size={14} /> View Problem
             </button>
             <button
               type="button"
               className="give-up-btn"
               onClick={handleGiveUp}
             >
-              Give Up
+              <IconFlag size={14} /> Give Up
             </button>
           </div>
         )}
@@ -587,7 +603,13 @@ function AppContent() {
           </div>
         )}
 
-        {showDashboard ? (
+        {exportToast && (
+          <div className="export-toast">{exportToast}</div>
+        )}
+
+        {showProfile ? (
+          <ProfilePanel onClose={() => setShowProfile(false)} />
+        ) : showDashboard ? (
           <Dashboard onClose={() => setShowDashboard(false)} />
         ) : showProblems ? (
           <ProblemBrowser onClose={() => setShowProblems(false)} />
@@ -621,39 +643,45 @@ function AppContent() {
             ) : (
               <div className="chat-history-list">
                 {chatHistory.map((chat) => (
-                  <button
+                  <div
                     key={chat.id}
-                    type="button"
                     className={`chat-history-item${chat.id === activeChatId ? " chat-history-item--active" : ""}`}
-                    onClick={() => handleLoadChat(chat.id)}
                   >
-                    <div className="chat-history-item-title">{chat.title}</div>
-                    <div className="chat-history-item-meta">
-                      <span className="chat-history-item-mode">{chat.mode}</span>
-                      <span className="chat-history-item-count">{chat.messageCount} msgs</span>
-                      <span className="chat-history-item-date">
-                        {new Date(chat.updatedAt).toLocaleDateString()}
-                      </span>
+                    <button
+                      type="button"
+                      className="chat-history-item-body"
+                      onClick={() => handleLoadChat(chat.id)}
+                    >
+                      <div className="chat-history-item-title">{chat.title}</div>
+                      <div className="chat-history-item-meta">
+                        <span className="chat-history-item-mode">{chat.mode}</span>
+                        <span className="chat-history-item-count">{chat.messageCount} msgs</span>
+                        <span className="chat-history-item-date">
+                          {new Date(chat.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </button>
+                    <div className="chat-history-item-actions">
                       <button
                         type="button"
-                        className="chat-history-item-export"
-                        onClick={(e) => { e.stopPropagation(); handleExportChat(chat.id, "markdown"); }}
+                        className="chat-history-action-btn chat-history-action-btn--export"
+                        onClick={() => handleExportChat(chat.id, "markdown")}
                         title="Export as Markdown"
                         aria-label="Export chat as Markdown"
                       >
-                        &#x2913;
+                        <IconDownload size={14} />
                       </button>
                       <button
                         type="button"
-                        className="chat-history-item-delete"
-                        onClick={(e) => { e.stopPropagation(); handleDeleteChat(chat.id); }}
+                        className="chat-history-action-btn chat-history-action-btn--delete"
+                        onClick={() => handleDeleteChat(chat.id)}
                         title="Delete chat"
                         aria-label="Delete chat"
                       >
-                        ×
+                        <IconTrash size={14} />
                       </button>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}

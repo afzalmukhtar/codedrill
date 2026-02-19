@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useVscode } from "../App";
+import { IconClose } from "./Icons";
 
 export interface ProblemSummary {
   id: number;
@@ -21,6 +22,8 @@ export interface SystemDesignTopicSummary {
   keyConcepts: string[];
   followUps: string[];
   source: string | null;
+  difficulty: string;
+  relevance: string;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -115,6 +118,12 @@ export function ProblemBrowser({ onClose }: ProblemBrowserProps) {
     onClose();
   }, [postMessage, onClose]);
 
+  const handlePromoteSystemDesign = useCallback((e: React.MouseEvent, topicId: number) => {
+    e.stopPropagation();
+    postMessage({ type: "promoteSystemDesign", topicId });
+    onClose();
+  }, [postMessage, onClose]);
+
   const filtered = useMemo(() => {
     if (!search) return problems;
     const lower = search.toLowerCase();
@@ -178,7 +187,7 @@ export function ProblemBrowser({ onClose }: ProblemBrowserProps) {
           {activeTab === "dsa" ? filtered.length : filteredSystemDesign.length}
         </span>
         <button type="button" className="problem-browser-close" onClick={onClose} title="Close">
-          &times;
+          <IconClose size={14} />
         </button>
       </div>
 
@@ -353,9 +362,31 @@ export function ProblemBrowser({ onClose }: ProblemBrowserProps) {
                     onClick={() => handleOpenSystemDesignTopic(t.id)}
                   >
                     <div className="problem-browser-item-main">
+                      <span
+                        className="problem-browser-diff"
+                        style={{ color: DIFFICULTY_COLORS[t.difficulty] || "#eab308" }}
+                      >
+                        {(t.difficulty || "M")[0]}
+                      </span>
                       <span className="problem-browser-item-title">{t.title}</span>
+                      {t.source === "resume" && (
+                        <span className="problem-browser-resume-badge">Resume</span>
+                      )}
+                      <span
+                        className="problem-browser-practice-btn"
+                        role="button"
+                        tabIndex={0}
+                        title="Start timed practice"
+                        onClick={(e) => handlePromoteSystemDesign(e, t.id)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handlePromoteSystemDesign(e as unknown as React.MouseEvent, t.id); }}
+                      >
+                        Practice
+                      </span>
                     </div>
                     <div className="problem-browser-item-desc">{t.description}</div>
+                    {t.relevance && (
+                      <div className="problem-browser-item-relevance">{t.relevance}</div>
+                    )}
                     {(t.keyConcepts ?? []).length > 0 && (
                       <div className="problem-browser-concepts">
                         {(t.keyConcepts ?? []).slice(0, 6).map((k) => (

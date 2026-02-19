@@ -1,5 +1,6 @@
 import React from "react";
 import type { ModelInfo } from "../App";
+import { IconSettings } from "./Icons";
 
 interface ModelSelectorProps {
   models: ModelInfo[];
@@ -35,7 +36,7 @@ export function ModelSelector({
         title="Configure models"
         aria-label="Configure models"
       >
-        +
+        <IconSettings size={14} />
       </button>
       <select
         className={`model-selector-dropdown${compact ? " model-selector-dropdown--compact" : ""}${!hasModels ? " model-selector-dropdown--disabled" : ""}`}

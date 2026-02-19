@@ -97,6 +97,18 @@ export class Repository {
         console.warn("[Repository] Migration companies column failed (may already exist):", e);
       }
     }
+    // Add difficulty/relevance columns to system_design_topics if missing
+    try {
+      this._db.exec("SELECT difficulty FROM system_design_topics LIMIT 1");
+    } catch {
+      try {
+        this._db.run("ALTER TABLE system_design_topics ADD COLUMN difficulty TEXT DEFAULT 'Medium'");
+        this._db.run("ALTER TABLE system_design_topics ADD COLUMN relevance TEXT DEFAULT ''");
+        console.log("[Repository] Migration: added difficulty/relevance columns to system_design_topics");
+      } catch (e) {
+        console.warn("[Repository] Migration system_design_topics columns failed:", e);
+      }
+    }
   }
 
   private _batchMode = false;
@@ -629,8 +641,8 @@ export class Repository {
 
   async insertSystemDesignTopic(t: Omit<SystemDesignTopic, "id">): Promise<number> {
     this.db.run(
-      `INSERT INTO system_design_topics (title, category, description, key_concepts, follow_ups, source)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO system_design_topics (title, category, description, key_concepts, follow_ups, source, difficulty, relevance)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         t.title,
         t.category,
@@ -638,6 +650,8 @@ export class Repository {
         JSON.stringify(t.keyConcepts ?? []),
         JSON.stringify(t.followUps ?? []),
         t.source ?? null,
+        t.difficulty ?? "Medium",
+        t.relevance ?? "",
       ],
     );
     const result = this.db.exec("SELECT last_insert_rowid() as id");
@@ -646,17 +660,21 @@ export class Repository {
     return id;
   }
 
-  getSystemDesignTopics(category?: string): SystemDesignTopic[] {
+  getSystemDesignTopics(category?: string, source?: string): SystemDesignTopic[] {
     let sql = "SELECT * FROM system_design_topics";
+    const clauses: string[] = [];
     const params: unknown[] = [];
-    if (category) {
-      sql += " WHERE category = ?";
-      params.push(category);
-    }
+    if (category) { clauses.push("category = ?"); params.push(category); }
+    if (source) { clauses.push("source = ?"); params.push(source); }
+    if (clauses.length > 0) { sql += " WHERE " + clauses.join(" AND "); }
     sql += " ORDER BY category, title";
     const rows = this.db.exec(sql, params);
     if (!rows[0]) { return []; }
     return rows[0].values.map((v) => this._rowToSystemDesignTopic(rows[0].columns, v));
+  }
+
+  deleteSystemDesignTopicsBySource(source: string): void {
+    this.db.run("DELETE FROM system_design_topics WHERE source = ?", [source]);
   }
 
   getSystemDesignTopicById(id: number): SystemDesignTopic | null {
@@ -687,6 +705,8 @@ export class Repository {
       keyConcepts: JSON.parse((obj.key_concepts as string) || "[]"),
       followUps: JSON.parse((obj.follow_ups as string) || "[]"),
       source: (obj.source as string) || null,
+      difficulty: (obj.difficulty as "Easy" | "Medium" | "Hard") || "Medium",
+      relevance: (obj.relevance as string) || "",
     };
   }
 }

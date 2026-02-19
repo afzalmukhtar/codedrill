@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { ModelSelector } from "./ModelSelector";
 import type { ModelInfo, DrillMode, ContextBadge } from "../App";
+import { IconSend, IconStop } from "./Icons";
 
 const MODE_LABELS: Record<DrillMode, string> = {
   teach: "Teach",
@@ -23,6 +24,7 @@ const MENTION_SUGGESTIONS: MentionSuggestion[] = [
   { type: "problem", label: "problem", insertText: "@problem", description: "Current problem statement" },
   { type: "solution", label: "solution", insertText: "@solution", description: "Current solution code" },
   { type: "terminal", label: "terminal", insertText: "@terminal", description: "Recent terminal output" },
+  { type: "resume", label: "resume", insertText: "@resume ", description: "Paste resume text after this" },
 ];
 
 interface ChatInputProps {
@@ -213,7 +215,7 @@ export function ChatInput({
             title="Stop generating"
             aria-label="Stop generating"
           >
-            ■
+            <IconStop size={14} />
           </button>
         ) : (
           <button
@@ -224,7 +226,7 @@ export function ChatInput({
             title={isLoading ? "Interrupt and send" : "Send message"}
             aria-label={isLoading ? "Interrupt and send" : "Send message"}
           >
-            ↑
+            <IconSend size={16} />
           </button>
         )}
       </div>

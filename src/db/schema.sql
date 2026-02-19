@@ -123,7 +123,9 @@ CREATE TABLE IF NOT EXISTS system_design_topics (
   description     TEXT NOT NULL,
   key_concepts    TEXT DEFAULT '[]',              -- JSON array of concept strings
   follow_ups      TEXT DEFAULT '[]',              -- JSON array of follow-up questions
-  source          TEXT                            -- Where this topic came from
+  source          TEXT,                           -- Where this topic came from
+  difficulty      TEXT DEFAULT 'Medium',          -- "Easy", "Medium", "Hard"
+  relevance       TEXT DEFAULT ''                 -- Why this topic matters for the user
 );
 
 CREATE INDEX IF NOT EXISTS idx_sd_topics_category ON system_design_topics(category);

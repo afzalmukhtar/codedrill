@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { ConfigManager } from "../utils/config";
 import type { LLMRouter } from "../ai/llm-router";
 import type { ChatMessage } from "../ai/providers/types";
-import type { PromptContext } from "../ai/personas/prompt-loader";
+import { loadPromptTemplate, buildPrompt, type PromptContext } from "../ai/personas/prompt-loader";
 import { PersonaRouter, type SessionState } from "../ai/personas/persona-router";
 import { ChatStorage, type ChatSession } from "../storage/chat-storage";
 import { ProfileManager } from "../storage/profile-manager";
@@ -237,19 +237,33 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           const format = this._str(message.format);
           if (chatId && (format === "markdown" || format === "json")) {
             const exported = await this._chatStorage.exportChat(chatId, format);
-            this.postMessage({
-              type: "exportChatResult",
-              chatId,
-              format,
-              content: exported,
-            });
-          } else {
-            this.postMessage({
-              type: "exportChatResult",
-              chatId: chatId ?? "",
-              format: format ?? "json",
-              content: null,
-            });
+            if (exported) {
+              const ext = format === "markdown" ? "md" : "json";
+              const defaultName = `codedrill-chat-${new Date().toISOString().slice(0, 10)}.${ext}`;
+              const uri = await vscode.window.showSaveDialog({
+                defaultUri: vscode.Uri.file(defaultName),
+                filters: format === "markdown"
+                  ? { "Markdown": ["md"], "All Files": ["*"] }
+                  : { "JSON": ["json"], "All Files": ["*"] },
+                title: "Export Chat",
+              });
+              if (uri) {
+                await vscode.workspace.fs.writeFile(uri, Buffer.from(exported, "utf-8"));
+                this.postMessage({ type: "exportChatResult", success: true, path: uri.fsPath });
+                const openChoice = await vscode.window.showInformationMessage(
+                  `Chat exported to ${uri.fsPath}`,
+                  "Open File",
+                );
+                if (openChoice === "Open File") {
+                  await vscode.window.showTextDocument(uri);
+                }
+              } else {
+                this.postMessage({ type: "exportChatResult", success: false });
+              }
+            } else {
+              this.postMessage({ type: "exportChatResult", success: false });
+              vscode.window.showWarningMessage("Chat export failed — chat may be empty.");
+            }
           }
           break;
         }
@@ -333,6 +347,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this._onGetDashboard();
           break;
 
+        case "submitResume": {
+          const resumeText = this._str(message.text);
+          if (resumeText) { await this._onSubmitResume(resumeText); }
+          break;
+        }
+
+        case "getResumeProfile":
+          await this._onGetResumeProfile();
+          break;
+
+        case "promoteSystemDesign": {
+          const sdTopicId = this._num(message.topicId);
+          if (sdTopicId) { await this._onPromoteSystemDesign(sdTopicId); }
+          break;
+        }
+
         default:
           break;
       }
@@ -410,6 +440,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private async _onSendMessage(text: string): Promise<void> {
     if (!text?.trim()) { return; }
+
+    // Detect @resume trigger -- hand off to the resume pipeline instead of chat
+    const trimmed = text.trim();
+    const resumeMatch = trimmed.match(/^@resume\s+([\s\S]+)/i)
+      || (trimmed.toLowerCase().startsWith("here is my resume") ? [trimmed, trimmed.replace(/^here is my resume[:\s]*/i, "")] : null);
+
+    if (trimmed.toLowerCase() === "@resume" || trimmed.toLowerCase() === "@resume:") {
+      this.postMessage({
+        type: "chatChunk",
+        content: "To analyze your resume, paste your full resume text after `@resume`. For example:\n\n```\n@resume <paste your entire resume here>\n```\n\nOr open the **Profile** tab to paste it in the dedicated text area.",
+      });
+      this.postMessage({ type: "chatDone" });
+      return;
+    }
+
+    if (resumeMatch && resumeMatch[1]?.trim().length > 20) {
+      this.postMessage({ type: "chatChunk", content: "Analyzing your resume and generating personalized system design topics..." });
+      this.postMessage({ type: "chatDone" });
+      await this._onSubmitResume(resumeMatch[1].trim());
+      return;
+    }
 
     // If there's an active stream, abort it first
     if (this._abortController) {
@@ -1176,6 +1227,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         keyConcepts: t.keyConcepts ?? [],
         followUps: t.followUps ?? [],
         source: t.source,
+        difficulty: t.difficulty ?? "Medium",
+        relevance: t.relevance ?? "",
       })),
     });
   }
@@ -1389,6 +1442,296 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           "Could not create config file. Create codedrill.config.json manually in your workspace root."
         );
       }
+    }
+  }
+
+  // ================================================================
+  // Resume processing pipeline
+  // ================================================================
+
+  private async _onSubmitResume(text: string): Promise<void> {
+    if (!this._router.hasProviders || !this._selectedModel) {
+      this.postMessage({ type: "resumeProgress", step: "error", message: "No AI provider configured." });
+      return;
+    }
+
+    // Step 1: Analyze resume with LLM
+    this.postMessage({ type: "resumeProgress", step: "analyzing", message: "Extracting skills and experience..." });
+
+    let resumeJson: Record<string, unknown>;
+    try {
+      const template = await loadPromptTemplate(this._extensionUri, "resume-analyzer.md");
+      const prompt = buildPrompt(template, { resumeText: text } as PromptContext);
+
+      let raw = "";
+      const stream = this._router.chat({
+        model: this._selectedModel,
+        messages: [],
+        systemPrompt: prompt,
+        stream: true,
+        temperature: 0.2,
+      });
+      for await (const chunk of stream) {
+        if (chunk.type === "content" && chunk.content) { raw += chunk.content; }
+        else if (chunk.type === "error") { throw new Error(chunk.error); }
+      }
+
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) { throw new Error("LLM did not return valid JSON"); }
+      resumeJson = JSON.parse(jsonMatch[0]);
+    } catch (err) {
+      console.error("[SidebarPanel] Resume analysis failed:", err);
+      this.postMessage({ type: "resumeProgress", step: "error", message: `Resume analysis failed: ${err}` });
+      return;
+    }
+
+    // Step 2: Merge into user profile
+    this.postMessage({ type: "resumeProgress", step: "profile", message: "Updating your profile..." });
+    try {
+      const existing = await this._profileManager.loadProfile();
+      const techStack = (resumeJson.techStack as string[]) ?? [];
+      const domains = (resumeJson.domains as string[]) ?? [];
+      const sysExp = (resumeJson.systemDesignExperience as string[]) ?? [];
+      const targets = (resumeJson.targetCompanies as string[]) ?? [];
+
+      const resumeSection = [
+        "## Resume Summary",
+        `- **Seniority**: ${resumeJson.seniorityLevel ?? "unknown"} (~${resumeJson.experienceYears ?? 0} years)`,
+        `- **Primary Role**: ${resumeJson.primaryRole ?? "unknown"}`,
+        "",
+        "## Tech Stack",
+        ...techStack.map((t) => `- ${t}`),
+        "",
+        "## Domains",
+        ...domains.map((d) => `- ${d}`),
+        "",
+        "## System Design Experience",
+        ...(sysExp.length > 0 ? sysExp.map((s) => `- ${s}`) : ["- Not enough data yet"]),
+        "",
+      ].join("\n");
+
+      let profile = existing ?? "";
+      // Replace existing resume sections or append
+      const resumeSectionRegex = /## Resume Summary[\s\S]*?(?=## (?!Resume|Tech Stack|Domains|System Design Experience)|$)/;
+      const techStackRegex = /## Tech Stack[\s\S]*?(?=## |$)/;
+      const domainsRegex = /## Domains[\s\S]*?(?=## |$)/;
+      const sysExpRegex = /## System Design Experience[\s\S]*?(?=## |$)/;
+
+      if (profile.includes("## Resume Summary")) {
+        profile = profile.replace(resumeSectionRegex, "");
+        profile = profile.replace(techStackRegex, "");
+        profile = profile.replace(domainsRegex, "");
+        profile = profile.replace(sysExpRegex, "");
+      }
+
+      // Update Target Companies section if present
+      if (targets.length > 0) {
+        const targetSection = "## Target Companies\n" + targets.map((c) => `- ${c}`).join("\n") + "\n";
+        if (profile.includes("## Target Companies")) {
+          profile = profile.replace(/## Target Companies[\s\S]*?(?=## |$)/, targetSection);
+        }
+      }
+
+      profile = profile.trimEnd() + "\n\n" + resumeSection;
+      await this._profileManager.saveProfile(profile.trim());
+    } catch (err) {
+      console.warn("[SidebarPanel] Profile update from resume failed:", err);
+    }
+
+    // Step 3: Generate system design topics
+    this.postMessage({ type: "resumeProgress", step: "generating", message: "Generating system design topics..." });
+    let topicCount = 0;
+    try {
+      const template = await loadPromptTemplate(this._extensionUri, "sysdesign-generator.md");
+      const prompt = buildPrompt(template, { resumeJson: JSON.stringify(resumeJson, null, 2) } as PromptContext);
+
+      let raw = "";
+      const stream = this._router.chat({
+        model: this._selectedModel,
+        messages: [],
+        systemPrompt: prompt,
+        stream: true,
+        temperature: 0.5,
+      });
+      for await (const chunk of stream) {
+        if (chunk.type === "content" && chunk.content) { raw += chunk.content; }
+        else if (chunk.type === "error") { throw new Error(chunk.error); }
+      }
+
+      const jsonMatch = raw.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) { throw new Error("LLM did not return a valid JSON array"); }
+      const topics = JSON.parse(jsonMatch[0]) as Array<{
+        title: string;
+        category: string;
+        description: string;
+        difficulty?: string;
+        keyConcepts?: string[];
+        followUps?: string[];
+        relevance?: string;
+      }>;
+
+      if (this._repository) {
+        // Clear previous resume-generated topics before inserting fresh ones
+        this._repository.deleteSystemDesignTopicsBySource("resume");
+
+        this._repository.beginBatch();
+        try {
+          for (const t of topics) {
+            await this._repository.insertSystemDesignTopic({
+              title: t.title,
+              category: t.category || "Full System Design",
+              description: t.description,
+              keyConcepts: t.keyConcepts ?? [],
+              followUps: t.followUps ?? [],
+              source: "resume",
+              difficulty: (t.difficulty as "Easy" | "Medium" | "Hard") || "Medium",
+              relevance: t.relevance ?? "",
+            });
+            topicCount++;
+          }
+        } finally {
+          await this._repository.endBatch();
+        }
+      }
+    } catch (err) {
+      console.error("[SidebarPanel] System design topic generation failed:", err);
+      this.postMessage({ type: "resumeProgress", step: "error", message: `Topic generation failed: ${err}` });
+      return;
+    }
+
+    // Step 4: Send completion
+    this.postMessage({
+      type: "resumeProcessed",
+      topicCount,
+      profile: resumeJson,
+    });
+  }
+
+  private async _onGetResumeProfile(): Promise<void> {
+    const profile = await this._profileManager.loadProfile();
+
+    // Extract structured resume data from profile markdown if present
+    let resumeData: Record<string, unknown> | null = null;
+    if (profile && profile.includes("## Resume Summary")) {
+      const senMatch = profile.match(/\*\*Seniority\*\*:\s*(\w+)\s*\(~(\d+)/);
+      const roleMatch = profile.match(/\*\*Primary Role\*\*:\s*(.+)/);
+      const techItems = [...profile.matchAll(/## Tech Stack\n([\s\S]*?)(?=\n## |\n*$)/g)];
+      const domainItems = [...profile.matchAll(/## Domains\n([\s\S]*?)(?=\n## |\n*$)/g)];
+
+      const extractList = (matches: RegExpMatchArray[]): string[] => {
+        if (matches.length === 0) return [];
+        return matches[0][1].split("\n").filter((l) => l.startsWith("- ")).map((l) => l.replace(/^- /, "").trim());
+      };
+
+      resumeData = {
+        seniorityLevel: senMatch?.[1] ?? "unknown",
+        experienceYears: senMatch ? parseInt(senMatch[2], 10) : 0,
+        primaryRole: roleMatch?.[1]?.trim() ?? "unknown",
+        techStack: extractList(techItems),
+        domains: extractList(domainItems),
+      };
+    }
+
+    this.postMessage({ type: "resumeProfile", profile: resumeData, rawProfile: profile });
+  }
+
+  private async _onPromoteSystemDesign(topicId: number): Promise<void> {
+    if (!this._repository) { return; }
+
+    const topic = this._repository.getSystemDesignTopicById(topicId);
+    if (!topic) {
+      this.postMessage({ type: "chatError", message: `System design topic #${topicId} not found.` });
+      return;
+    }
+
+    if (!this._router.hasProviders || !this._selectedModel) {
+      this.postMessage({ type: "chatError", message: "No AI provider configured." });
+      return;
+    }
+
+    // Generate a full practice problem from the topic
+    this.postMessage({
+      type: "sessionProgress",
+      step: "generating",
+      label: `Generating practice problem: ${topic.title}...`,
+      pct: 30,
+    });
+
+    try {
+      const userProfile = await this._profileManager.loadProfile();
+      const template = await loadPromptTemplate(this._extensionUri, "sysdesign-practice.md");
+      const prompt = buildPrompt(template, {
+        problemTitle: topic.title,
+        category: topic.category,
+        topicDescription: topic.description,
+        keyConcepts: (topic.keyConcepts ?? []).join(", "),
+        difficulty: topic.difficulty,
+        userProfile: userProfile ?? undefined,
+      });
+
+      let markdown = "";
+      const stream = this._router.chat({
+        model: this._selectedModel,
+        messages: [],
+        systemPrompt: prompt,
+        stream: true,
+        temperature: 0.4,
+      });
+
+      for await (const chunk of stream) {
+        if (chunk.type === "content" && chunk.content) {
+          markdown += chunk.content;
+          this.postMessage({ type: "sessionStreamChunk", content: chunk.content });
+        } else if (chunk.type === "error") {
+          throw new Error(chunk.error);
+        }
+      }
+
+      // Save as a markdown file
+      const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (workspaceUri && markdown.trim()) {
+        const date = new Date().toISOString().slice(0, 10);
+        const slug = topic.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        const dirUri = vscode.Uri.joinPath(workspaceUri, ".codedrill", "problems", date);
+        try { await vscode.workspace.fs.createDirectory(dirUri); } catch { /* exists */ }
+        const fileUri = vscode.Uri.joinPath(dirUri, `${slug}.md`);
+        await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(markdown));
+
+        const timerMs = topic.difficulty === "Easy" ? 30 * 60_000
+          : topic.difficulty === "Hard" ? 60 * 60_000
+          : 45 * 60_000;
+
+        this._activeProblem = {
+          slug,
+          title: topic.title,
+          difficulty: topic.difficulty,
+          category: `System Design — ${topic.category}`,
+          filePath: fileUri.fsPath,
+          timerDurationMs: timerMs,
+          isMutation: false,
+        };
+
+        this._mode = "interview";
+        this.postMessage({
+          type: "problemLoaded",
+          problem: {
+            title: topic.title,
+            difficulty: topic.difficulty,
+            category: `System Design — ${topic.category}`,
+            timerDurationMs: timerMs,
+            isMutation: false,
+          },
+        });
+        this.postMessage({ type: "modeOverride", mode: "interview" });
+
+        // Open the markdown preview
+        vscode.commands.executeCommand("markdown.showPreview", fileUri).then(undefined, () => {
+          vscode.workspace.openTextDocument(fileUri).then((doc) => vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside));
+        });
+      }
+    } catch (err) {
+      console.error("[SidebarPanel] System design promotion failed:", err);
+      this.postMessage({ type: "chatError", message: `Failed to generate practice problem: ${err}` });
     }
   }
 

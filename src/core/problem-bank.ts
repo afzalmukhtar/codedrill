@@ -107,6 +107,8 @@ export class ProblemBank {
           keyConcepts: topic.keyConcepts ?? [],
           followUps: topic.followUps ?? [],
           source: topic.source ?? list.name ?? null,
+          difficulty: (topic as { difficulty?: string }).difficulty as "Easy" | "Medium" | "Hard" || "Medium",
+          relevance: (topic as { relevance?: string }).relevance ?? "",
         });
         existingTitles.add(topic.title);
         imported++;

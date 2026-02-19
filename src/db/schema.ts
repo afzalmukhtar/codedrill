@@ -85,4 +85,6 @@ export interface SystemDesignTopic {
   keyConcepts: string[];
   followUps: string[];
   source: string | null;
+  difficulty: "Easy" | "Medium" | "Hard";
+  relevance: string;
 }
