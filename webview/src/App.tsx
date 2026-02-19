@@ -7,7 +7,7 @@ import { SessionLoader, type SessionProgress } from "./components/SessionLoader"
 import { ProblemBrowser } from "./components/ProblemBrowser";
 import { Dashboard } from "./components/Dashboard";
 import { ProfilePanel } from "./components/ProfilePanel";
-import { IconNewChat, IconTrash, IconDownload, IconClose, IconEye, IconFlag, IconPlay, IconCode } from "./components/Icons";
+import { IconNewChat, IconTrash, IconDownload, IconClose, IconEye, IconFlag, IconPlay, IconCode, IconReset } from "./components/Icons";
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -635,6 +635,15 @@ function AppContent() {
               aria-label="Run tests"
             >
               <IconPlay size={14} /> Run Tests
+            </button>
+            <button
+              type="button"
+              className="regen-tests-btn"
+              onClick={() => vscodeApi.postMessage({ type: "regenerateTests" })}
+              aria-label="Regenerate test cases via AI"
+              title="Regenerate 20+ test cases using AI"
+            >
+              <IconReset size={14} /> Regen Tests
             </button>
             <button
               type="button"

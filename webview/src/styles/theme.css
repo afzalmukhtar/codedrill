@@ -1351,6 +1351,31 @@ body {
   border-color: #22c55e;
 }
 
+.regen-tests-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #f59e0b;
+  background: transparent;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.regen-tests-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.regen-tests-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+}
+
 .give-up-btn {
   display: inline-flex;
   align-items: center;

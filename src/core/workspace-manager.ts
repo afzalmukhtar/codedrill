@@ -11,7 +11,7 @@ interface WorkspaceConfig {
 /**
  * Manages the codedrill-practice/ workspace directory:
  * - Smart git detection and initialization
- * - Problem folder scaffolding (problem.md, solution.py, test_solution.py)
+ * - Problem folder scaffolding (problem.md, {slug}.py, test_{slug}.py)
  * - Auto-commit on problem creation and solution submission
  * - README.md progress report generation
  */
@@ -28,6 +28,16 @@ export class WorkspaceManager {
 
   get practiceDir(): vscode.Uri | null { return this._practiceUri; }
   get gitMode(): GitMode { return this._gitMode; }
+
+  /**
+   * Convert a problem slug like "two-sum" or "3sum" into a valid
+   * Python module name: "two_sum", "_3sum".
+   */
+  static slugToModule(slug: string): string {
+    let mod = slug.replace(/-/g, "_").replace(/[^a-z0-9_]/gi, "");
+    if (/^\d/.test(mod)) { mod = `_${mod}`; }
+    return mod || "solution";
+  }
 
   async ensureWorkspace(): Promise<vscode.Uri | null> {
     const folders = vscode.workspace.workspaceFolders;
@@ -67,12 +77,13 @@ export class WorkspaceManager {
   ): Promise<{ problemDir: vscode.Uri; solutionUri: vscode.Uri }> {
     if (!this._practiceUri) { throw new Error("Workspace not initialized"); }
 
+    const mod = WorkspaceManager.slugToModule(slug);
     const problemDir = vscode.Uri.joinPath(this._practiceUri, "problems", slug);
     await this._ensureDir(problemDir);
 
     const problemUri = vscode.Uri.joinPath(problemDir, "problem.md");
-    const solutionUri = vscode.Uri.joinPath(problemDir, "solution.py");
-    const testUri = vscode.Uri.joinPath(problemDir, "test_solution.py");
+    const solutionUri = vscode.Uri.joinPath(problemDir, `${mod}.py`);
+    const testUri = vscode.Uri.joinPath(problemDir, `test_${mod}.py`);
 
     await vscode.workspace.fs.writeFile(problemUri, Buffer.from(problemMd, "utf-8"));
     await vscode.workspace.fs.writeFile(solutionUri, Buffer.from(stubCode, "utf-8"));
@@ -108,13 +119,14 @@ export class WorkspaceManager {
     leetcodeExamples: Array<{ input: string; output: string; description?: string }>,
     llmEdgeCases: Array<{ input: string; expected_output: string; description?: string }>,
   ): string {
+    const mod = WorkspaceManager.slugToModule(slug);
     const lines: string[] = [
       "import pytest",
       "import sys",
       "import os",
       "",
       "sys.path.insert(0, os.path.dirname(__file__))",
-      `from solution import ${className}`,
+      `from ${mod} import ${className}`,
       "",
       "",
       `class Test${className}:`,

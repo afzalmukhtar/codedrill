@@ -12,6 +12,7 @@ import { SessionManager } from "./core/session-manager";
 import { ProblemMutator } from "./core/problem-mutator";
 import { WorkspaceManager } from "./core/workspace-manager";
 import { clearTemplateCache } from "./ai/personas/prompt-loader";
+import { generateTestCases, extractTestGenInput } from "./core/test-generator";
 
 /** Module-level cancellation source for the session generation flow. */
 let sessionCancellation: vscode.CancellationTokenSource | null = null;
@@ -114,6 +115,7 @@ export function activate(context: vscode.ExtensionContext): void {
           sessionManager,
           repository,
           workspaceManager,
+          context.extensionUri,
         );
       });
     })
@@ -194,6 +196,7 @@ async function getTodaysProblem(
   sessionManager: SessionManager,
   repository: Repository,
   workspaceManager: WorkspaceManager,
+  extensionUri: vscode.Uri,
 ): Promise<void> {
   sessionCancellation = new vscode.CancellationTokenSource();
   const externalToken = sessionCancellation.token;
@@ -427,7 +430,7 @@ async function getTodaysProblem(
           new TextEncoder().encode(markdown),
         );
 
-        // 6. Scaffold workspace (git repo + solution.py + test file)
+        // 6. Scaffold workspace (git repo + {slug}.py + test file)
         sendProgress("session", "Setting up workspace...");
         progress.report({ message: "Setting up workspace..." });
         try {
@@ -435,15 +438,32 @@ async function getTodaysProblem(
           if (practiceDir) {
             const stubCode = problem.codeStub
               ?? "from typing import List, Optional\n\n\nclass Solution:\n    pass\n";
+
+            // Extract function name from stub for test assertions
+            const fnMatch = stubCode.match(/def\s+(\w+)\s*\(/);
+            const fnName = fnMatch?.[1] ?? "solve";
+
+            // Generate LLM-powered test cases (20+)
+            sendProgress("session", "Generating test cases...");
+            progress.report({ message: "Generating test cases..." });
+            const input = extractTestGenInput(markdown, stubCode);
+            const llmCases = await generateTestCases(
+              extensionUri, router, model, input,
+            );
+
             const testCode = workspaceManager.buildTestFile(
               slug,
-              "solve",
+              fnName,
               "Solution",
               problem.examples.map((ex) => ({ input: ex.input, output: ex.output })),
-              [],
+              llmCases,
             );
             const { solutionUri } = await workspaceManager.scaffoldProblem(slug, markdown, stubCode, testCode);
             await workspaceManager.commitProblem(slug);
+
+            vscode.window.showInformationMessage(
+              `CodeDrill: Scaffolded ${slug} with ${problem.examples.length + llmCases.length} test cases`,
+            );
 
             const solDoc = await vscode.workspace.openTextDocument(solutionUri);
             await vscode.window.showTextDocument(solDoc, {
@@ -460,14 +480,14 @@ async function getTodaysProblem(
         progress.report({ message: "Setting up session..." });
         const session = await sessionManager.startSession(problem.id);
 
-        // 8. Open problem markdown in editor (fallback if workspace didn't open solution.py)
+        // 8. Open problem markdown in editor (column 2, alongside the solution file)
         try {
           const doc = await vscode.workspace.openTextDocument(fileUri);
           await vscode.window.showTextDocument(doc, {
             viewColumn: vscode.ViewColumn.Two,
             preview: true,
           });
-        } catch { /* non-fatal -- solution.py is already open */ }
+        } catch { /* non-fatal -- solution file is already open */ }
 
         // 9. Notify sidebar and store active problem + start timer
         const problemMeta = {

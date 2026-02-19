@@ -11,6 +11,8 @@ import { MentionParser } from "../context/mention-parser";
 import { Timer } from "../core/timer";
 import type { Repository } from "../db/repository";
 import type { ProblemBank } from "../core/problem-bank";
+import { WorkspaceManager } from "../core/workspace-manager";
+import { generateTestCases, extractTestGenInput, type GeneratedTestCase } from "../core/test-generator";
 import type { ProblemGeneratorPersona } from "../ai/personas/problem-generator";
 import type { SessionManager } from "../core/session-manager";
 
@@ -357,6 +359,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         case "createCodeStub":
           await this._onCreateCodeStub();
+          break;
+
+        case "regenerateTests":
+          await this._onRegenerateTests();
           break;
 
         case "giveUp":
@@ -1441,20 +1447,40 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // Run tests -- execute pytest in a terminal for the active problem
   // ================================================================
 
-  private _onRunTests(): void {
+  private async _onRunTests(): Promise<void> {
     if (!this._activeProblem?.slug) {
       this.postMessage({ type: "chatError", message: "No active problem to test." });
       return;
     }
     const slug = this._activeProblem.slug;
-    const testPath = `codedrill-practice/problems/${slug}/test_solution.py`;
+    const mod = WorkspaceManager.slugToModule(slug);
+    const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    if (!workspaceUri) { return; }
+
+    const problemDir = vscode.Uri.joinPath(workspaceUri, "codedrill-practice", "problems", slug);
+
+    // Prefer new naming (test_{mod}.py), fall back to legacy (test_solution.py)
+    let testFileName = `test_${mod}.py`;
+    try {
+      await vscode.workspace.fs.stat(vscode.Uri.joinPath(problemDir, testFileName));
+    } catch {
+      try {
+        await vscode.workspace.fs.stat(vscode.Uri.joinPath(problemDir, "test_solution.py"));
+        testFileName = "test_solution.py";
+      } catch {
+        vscode.window.showWarningMessage("CodeDrill: No test file found. Click 'Code Stub' first to create one.");
+        return;
+      }
+    }
+
+    const testPath = `codedrill-practice/problems/${slug}/${testFileName}`;
     const terminal = vscode.window.createTerminal({ name: `CodeDrill: ${slug}` });
     terminal.show();
     terminal.sendText(`python -m pytest "${testPath}" -v`);
   }
 
   // ================================================================
-  // Create code stub -- scaffold solution.py + test file for active problem
+  // Create code stub -- scaffold {slug}.py + test file for active problem
   // ================================================================
 
   private async _onCreateCodeStub(): Promise<void> {
@@ -1470,20 +1496,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
 
     const slug = this._activeProblem.slug;
-    const problemId = (this._activeProblem as { problemId?: number }).problemId;
-
-    let codeStub = "from typing import List, Optional\n\n\nclass Solution:\n    pass\n";
-    let problemMd = "";
-
-    if (this._repository && problemId) {
-      const problem = this._repository.getProblemById(problemId);
-      if (problem?.codeStub) {
-        codeStub = `from typing import List, Optional, Dict, Tuple, Set\n\n\n${problem.codeStub}\n`;
-      }
-      if (problem?.description) {
-        problemMd = problem.description;
-      }
-    }
+    const { codeStub, problemMd, fnName, examples } = this._getActiveTestMeta();
 
     try {
       const baseDir = vscode.Uri.joinPath(workspaceUri, "codedrill-practice");
@@ -1493,9 +1506,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       const practiceDir = vscode.Uri.joinPath(problemsDir, slug);
       try { await vscode.workspace.fs.stat(practiceDir); } catch { await vscode.workspace.fs.createDirectory(practiceDir); }
 
-      const solutionUri = vscode.Uri.joinPath(practiceDir, "solution.py");
-      const testUri = vscode.Uri.joinPath(practiceDir, "test_solution.py");
+      const mod = WorkspaceManager.slugToModule(slug);
+      const solutionUri = vscode.Uri.joinPath(practiceDir, `${mod}.py`);
+      const testUri = vscode.Uri.joinPath(practiceDir, `test_${mod}.py`);
       const problemUri = vscode.Uri.joinPath(practiceDir, "problem.md");
+
+      // Also clean up legacy naming if present
+      const legacySolutionUri = vscode.Uri.joinPath(practiceDir, "solution.py");
+      const legacyTestUri = vscode.Uri.joinPath(practiceDir, "test_solution.py");
+      try { await vscode.workspace.fs.delete(legacySolutionUri); } catch { /* doesn't exist */ }
+      try { await vscode.workspace.fs.delete(legacyTestUri); } catch { /* doesn't exist */ }
 
       let alreadyExists = false;
       try { await vscode.workspace.fs.stat(solutionUri); alreadyExists = true; } catch { /* new */ }
@@ -1503,31 +1523,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       if (alreadyExists) {
         const doc = await vscode.workspace.openTextDocument(solutionUri);
         await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
-        vscode.window.showInformationMessage(`CodeDrill: Opened existing solution for ${slug}`);
+        vscode.window.showInformationMessage(`CodeDrill: Opened existing ${mod}.py for ${slug}`);
         return;
       }
 
       await vscode.workspace.fs.writeFile(solutionUri, Buffer.from(codeStub, "utf-8"));
-
-      const basicTest = [
-        "import pytest",
-        "import sys",
-        "import os",
-        "",
-        "sys.path.insert(0, os.path.dirname(__file__))",
-        "from solution import Solution",
-        "",
-        "",
-        "class TestSolution:",
-        "    def setup_method(self):",
-        "        self.sol = Solution()",
-        "",
-        "    def test_placeholder(self):",
-        '        """Replace with actual test cases"""',
-        "        assert True",
-        "",
-      ].join("\n");
-      await vscode.workspace.fs.writeFile(testUri, Buffer.from(basicTest, "utf-8"));
 
       if (problemMd) {
         await vscode.workspace.fs.writeFile(problemUri, Buffer.from(problemMd, "utf-8"));
@@ -1535,11 +1535,199 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
       const doc = await vscode.workspace.openTextDocument(solutionUri);
       await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
-      vscode.window.showInformationMessage(`CodeDrill: Created solution.py for ${slug}`);
+
+      // Write example-based tests immediately so user has something to run right away
+      await vscode.workspace.fs.writeFile(testUri, Buffer.from(
+        this._buildFallbackTest(mod, fnName, examples), "utf-8",
+      ));
+
+      // Then upgrade to LLM-generated tests in background
+      await this._generateTestsForProblem(slug, mod, testUri, codeStub, problemMd, fnName, examples);
+
+      vscode.window.showInformationMessage(`CodeDrill: Created ${mod}.py for ${slug}`);
     } catch (err) {
       console.error("[CodeDrill] createCodeStub failed:", err);
       vscode.window.showErrorMessage(`CodeDrill: Failed to create code stub: ${err instanceof Error ? err.message : err}`);
     }
+  }
+
+  private _extractFunctionName(codeStub: string): string {
+    const match = codeStub.match(/def\s+(\w+)\s*\(/);
+    return match?.[1] ?? "solve";
+  }
+
+  private _buildTestFileContent(
+    mod: string,
+    functionName: string,
+    className: string,
+    cases: GeneratedTestCase[],
+  ): string {
+    const lines: string[] = [
+      "import pytest",
+      "import sys",
+      "import os",
+      "",
+      "sys.path.insert(0, os.path.dirname(__file__))",
+      `from ${mod} import ${className}`,
+      "",
+      "",
+      `class Test${className}:`,
+      "    def setup_method(self):",
+      `        self.sol = ${className}()`,
+      "",
+    ];
+
+    cases.forEach((tc, i) => {
+      const safeName = tc.description
+        ? tc.description.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_|_$)/g, "")
+        : `case_${i + 1}`;
+      lines.push(`    def test_${safeName}(self):`);
+      if (tc.description) {
+        lines.push(`        """${tc.description}"""`);
+      }
+      lines.push(`        assert self.sol.${functionName}(${tc.input}) == ${tc.expected_output}`);
+      lines.push("");
+    });
+
+    return lines.join("\n");
+  }
+
+  private _buildFallbackTest(mod: string, functionName?: string, examples?: Array<{ input: string; output: string; explanation?: string }>): string {
+    const fn = functionName ?? "solve";
+    const lines = [
+      "import pytest",
+      "import sys",
+      "import os",
+      "",
+      "sys.path.insert(0, os.path.dirname(__file__))",
+      `from ${mod} import Solution`,
+      "",
+      "",
+      "class TestSolution:",
+      "    def setup_method(self):",
+      "        self.sol = Solution()",
+      "",
+    ];
+
+    if (examples && examples.length > 0) {
+      examples.forEach((ex, i) => {
+        lines.push(`    def test_example_${i + 1}(self):`);
+        if (ex.explanation) {
+          lines.push(`        """${ex.explanation}"""`);
+        }
+        lines.push(`        assert self.sol.${fn}(${ex.input}) == ${ex.output}`);
+        lines.push("");
+      });
+    } else {
+      lines.push("    def test_placeholder(self):");
+      lines.push('        """Replace with actual test cases"""');
+      lines.push("        assert True");
+      lines.push("");
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * Resolve problem metadata for test generation: function name, examples, description.
+   */
+  private _getActiveTestMeta(): { codeStub: string; problemMd: string; fnName: string; examples: Array<{ input: string; output: string; explanation?: string }> } {
+    const problemId = (this._activeProblem as { problemId?: number })?.problemId;
+    let codeStub = "from typing import List, Optional\n\n\nclass Solution:\n    pass\n";
+    let problemMd = "";
+    let examples: Array<{ input: string; output: string; explanation?: string }> = [];
+
+    if (this._repository && problemId) {
+      const problem = this._repository.getProblemById(problemId);
+      if (problem?.codeStub) {
+        codeStub = `from typing import List, Optional, Dict, Tuple, Set\n\n\n${problem.codeStub}\n`;
+      }
+      if (problem?.description) {
+        problemMd = problem.description;
+      }
+      if (problem?.examples) {
+        examples = problem.examples;
+      }
+    }
+
+    const fnName = this._extractFunctionName(codeStub);
+    return { codeStub, problemMd, fnName, examples };
+  }
+
+  /**
+   * Generate LLM test cases for a problem and overwrite the test file.
+   * Runs in a background progress notification. If the LLM fails or isn't
+   * available, the existing file (which already has example-based tests) is kept.
+   */
+  private async _generateTestsForProblem(
+    slug: string,
+    mod: string,
+    testUri: vscode.Uri,
+    codeStub: string,
+    problemMd: string,
+    fnName: string,
+    examples: Array<{ input: string; output: string; explanation?: string }>,
+  ): Promise<void> {
+    if (!problemMd || !this._router.hasProviders || !this._selectedModel) {
+      return;
+    }
+
+    vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `CodeDrill: Generating tests for ${slug}...` },
+      async () => {
+        const input = extractTestGenInput(problemMd, codeStub);
+        const cases = await generateTestCases(
+          this._extensionUri, this._router, this._selectedModel!, input,
+        );
+        if (cases.length > 0) {
+          const testContent = this._buildTestFileContent(mod, fnName, "Solution", cases);
+          await vscode.workspace.fs.writeFile(testUri, Buffer.from(testContent, "utf-8"));
+          vscode.window.showInformationMessage(`CodeDrill: Generated ${cases.length} test cases for ${slug}`);
+        } else if (examples.length > 0) {
+          vscode.window.showInformationMessage(
+            `CodeDrill: LLM test generation returned empty. Keeping ${examples.length} example-based tests.`,
+          );
+        } else {
+          vscode.window.showWarningMessage("CodeDrill: Could not generate test cases. Using placeholder.");
+        }
+      },
+    );
+  }
+
+  /**
+   * Regenerate tests for the currently active problem, overwriting any existing test file.
+   */
+  private async _onRegenerateTests(): Promise<void> {
+    if (!this._activeProblem?.slug) {
+      vscode.window.showWarningMessage("CodeDrill: No active problem.");
+      return;
+    }
+    const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    if (!workspaceUri) {
+      vscode.window.showWarningMessage("CodeDrill: No workspace folder open.");
+      return;
+    }
+    if (!this._router.hasProviders || !this._selectedModel) {
+      vscode.window.showWarningMessage("CodeDrill: Configure an AI model first to generate test cases.");
+      return;
+    }
+
+    const slug = this._activeProblem.slug;
+    const mod = WorkspaceManager.slugToModule(slug);
+    const { codeStub, problemMd, fnName, examples } = this._getActiveTestMeta();
+
+    if (!problemMd) {
+      vscode.window.showWarningMessage("CodeDrill: No problem description available for test generation.");
+      return;
+    }
+
+    const practiceDir = vscode.Uri.joinPath(workspaceUri, "codedrill-practice", "problems", slug);
+    const testUri = vscode.Uri.joinPath(practiceDir, `test_${mod}.py`);
+
+    // Remove legacy test file if present
+    try { await vscode.workspace.fs.delete(vscode.Uri.joinPath(practiceDir, "test_solution.py")); } catch { /* doesn't exist */ }
+
+    await this._generateTestsForProblem(slug, mod, testUri, codeStub, problemMd, fnName, examples);
   }
 
   // ================================================================
