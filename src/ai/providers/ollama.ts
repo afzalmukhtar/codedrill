@@ -68,6 +68,7 @@ export class OllamaProvider implements LLMProvider {
         model: request.model,
         messages,
         stream: true,
+        ...(request.responseFormat === "json" ? { format: "json" } : {}),
         options: {
           temperature: request.temperature ?? 0.7,
           ...(request.maxTokens ? { num_predict: request.maxTokens } : {}),

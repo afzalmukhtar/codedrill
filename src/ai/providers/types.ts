@@ -111,6 +111,9 @@ export interface ChatRequest {
   /** Whether to stream the response */
   stream: boolean;
 
+  /** Force the model to output valid JSON. Supported by Ollama, OpenAI, Azure, OpenRouter. */
+  responseFormat?: "json";
+
   /** IDE context attachments from @-mentions */
   context?: ContextAttachment[];
 

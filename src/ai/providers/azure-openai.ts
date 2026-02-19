@@ -86,6 +86,7 @@ export class AzureOpenAIProvider implements LLMProvider {
           temperature: request.temperature ?? 0.7,
           max_tokens: request.maxTokens,
           stream: true,
+          ...(request.responseFormat === "json" ? { response_format: { type: "json_object" as const } } : {}),
         },
         request.signal ? { signal: request.signal } : undefined,
       );

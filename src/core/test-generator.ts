@@ -45,11 +45,12 @@ export async function generateTestCases(
   try {
     const stream = router.chat({
       model,
-      messages: [{ role: "user", content: "Generate the test cases now." }],
+      messages: [{ role: "user", content: "Generate the test cases now. Output ONLY a JSON array." }],
       systemPrompt,
       temperature: 0.2,
       maxTokens: 4096,
       stream: true,
+      responseFormat: "json",
       signal,
     });
 
@@ -103,8 +104,24 @@ function parseTestCaseJson(raw: string): GeneratedTestCase[] {
 
   try {
     const parsed = JSON.parse(cleaned);
-    if (!Array.isArray(parsed)) { return []; }
-    return parsed
+
+    // Handle both raw array and object wrapper (e.g. {"test_cases": [...]})
+    let arr: unknown[];
+    if (Array.isArray(parsed)) {
+      arr = parsed;
+    } else if (typeof parsed === "object" && parsed !== null) {
+      const values = Object.values(parsed as Record<string, unknown>);
+      const found = values.find((v) => Array.isArray(v));
+      if (Array.isArray(found)) {
+        arr = found;
+      } else {
+        return [];
+      }
+    } else {
+      return [];
+    }
+
+    return arr
       .filter(
         (tc: unknown): tc is GeneratedTestCase =>
           typeof tc === "object" &&
