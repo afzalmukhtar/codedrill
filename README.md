@@ -1,104 +1,159 @@
-# CodeDrill
+![CodeDrill](media/icon.png)
 
-**Master DSA and System Design with Science-Backed Interview Practice**
+# ⚡ CodeDrill
 
-CodeDrill is an IDE extension that transforms technical interview preparation into a scientifically-optimized learning system. It combines FSRS spaced repetition, dual AI personas (Interviewer + Teacher), timed practice, 3,200+ problems with company tags, and progressive problem mutation -- all inside your editor.
+### Master DSA & System Design with Science-Backed Interview Practice
 
-Works with **VS Code**, **Cursor**, and **Windsurf**.
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/afzalmukhtar/codedrill/releases)
+[![Problems](https://img.shields.io/badge/problems-3200%2B-green)](https://github.com/afzalmukhtar/codedrill)
+[![Companies](https://img.shields.io/badge/companies-660%2B-orange)](https://github.com/afzalmukhtar/codedrill)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+> 🎯 FSRS spaced repetition · 🤖 Dual AI personas · ⏱️ Timed practice · 📚 3,200+ problems · 🔄 Problem mutation · 🏢 660+ company tags
+
+Works with **VS Code** · **Cursor** · **Windsurf**
 
 ---
 
-## Installation
+## 📋 Table of Contents
 
-### Option A: Install from `.vsix` file
+- [✨ Features](#-features)
+- [📦 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [🎮 How to Use](#-how-to-use)
+- [🤖 AI Providers](#-ai-providers)
+- [⚙️ Configuration](#️-configuration)
+- [🛠️ Development](#️-development)
 
-Download `codedrill-1.0.0.vsix` from the releases page, then install it in your IDE:
+---
+
+## ✨ Features
+
+### 🤖 Dual AI Personas
+
+| Mode | When Active | Behavior |
+|------|-------------|----------|
+| 🔴 **Interviewer** | Timer is running | Concise, professional. Socratic hints only. Never gives answers. Auto-nudges when you're stuck. |
+| 🟢 **Teacher** | After Give Up / timer expires | Warm, structured. Problem restatement → brute force → optimal → code walkthrough → complexity → pattern → related problems. |
+
+> Modes switch automatically. Manual override available anytime.
+
+### 📚 3,200+ Problem Library
+
+- 🏷️ Aggregated from **Blind 75**, **NeetCode 150**, **Grind 75**, and **8 curated GitHub repos**
+- 🔍 Every problem tagged with **difficulty**, **algorithm pattern** (19 families), and **company data** (660+ companies)
+- 🎯 Filter by company, pattern, category, or difficulty in the Problem Browser
+
+### 🧠 Science-Backed Learning
+
+- 📊 **FSRS Spaced Repetition** — Rate yourself Again / Hard / Good / Easy. The algorithm schedules your next review at the optimal interval.
+- 🔄 **Problem Mutation** — After 3+ attempts, constraints and inputs are mutated so you learn the pattern, not memorize the answer.
+- 👤 **Personalized Profile** — AI analyzes your conversations to build a learner profile with struggle topics, strengths, and preferred explanation style.
+
+### 💻 Developer-First Experience
+
+- 📎 **Code Context** — Active file, selection, and cursor position injected into every AI conversation
+- 📝 **Code Scaffolding** — Auto-creates `{problem_name}.py` and `test_{problem_name}.py` with deterministic function names
+- 🧪 **20+ Test Cases** — LLM-generated edge cases with forced JSON output for reliable parsing
+- ▶️ **Run Tests** — One-click pytest execution from the sidebar
+- 📂 **Git Progress Tracking** — Optional git repo with auto-commits and README progress report
+
+### 🏗️ Resume-Driven System Design
+
+1. 📄 Paste your resume in the **Profile** tab
+2. 🔬 CodeDrill extracts your seniority, tech stack, and domains
+3. 🎯 Generates 5-10 personalized system design topics
+4. ⏱️ Promote any topic to a full timed practice session
+
+### 🎨 Rich UI
+
+- 🖍️ Syntax-highlighted code blocks with copy buttons
+- 📊 Mermaid diagram support in problem previews
+- 🏆 Progress dashboard with streaks, mastery bars, and company coverage
+- 📖 GitHub-style markdown preview for problem statements
+
+---
+
+## 📦 Installation
+
+### Option A: From `.vsix` file
+
+Download `codedrill-1.0.0.vsix` from the [releases page](https://github.com/afzalmukhtar/codedrill/releases).
 
 **VS Code:**
-
 ```bash
 code --install-extension codedrill-1.0.0.vsix
 ```
 
 **Cursor:**
-
 ```bash
 cursor --install-extension codedrill-1.0.0.vsix
 ```
 
 **Windsurf:**
-
 ```bash
 windsurf --install-extension codedrill-1.0.0.vsix
 ```
 
-Or in any of the three IDEs: open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`), type `Extensions: Install from VSIX...`, and select the file.
+> 💡 **Or in any IDE:** Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) → `Extensions: Install from VSIX...` → select the file.
 
-### Option B: Install from Marketplace
+### Option B: From Marketplace
 
 Search for **CodeDrill** in the Extensions tab of your IDE.
 
 ---
 
-## Setup (First Run)
+## 🚀 Quick Start
 
-### Step 1: Open the CodeDrill sidebar
+### Step 1: Configure an AI model
 
-Click the CodeDrill icon in the Activity Bar (left sidebar). You'll see a welcome screen with setup instructions.
+Click the `+` button at the bottom of the CodeDrill sidebar, or run **CodeDrill: Configure Model Providers** from the Command Palette.
 
-### Step 2: Configure an AI model
+<details>
+<summary>🦙 <strong>Ollama (free, local — recommended)</strong></summary>
 
-CodeDrill needs an LLM to power the Interviewer, Teacher, and test generation. Click the `+` button at the bottom of the sidebar, or run the command `CodeDrill: Configure Model Providers`.
-
-This creates a `codedrill.config.json` file in your workspace. Edit it to enable your preferred provider:
-
-**Ollama (Free, Local -- Recommended for getting started):**
-
-1. Install Ollama from [ollama.com](https://ollama.com)
-2. Pull a model: `ollama pull qwen2.5:14b` (or any model you prefer)
-3. Your config should have:
+1. Install from [ollama.com](https://ollama.com)
+2. Pull a model: `ollama pull qwen2.5:14b`
+3. Config:
 
 ```json
 {
   "providers": {
-    "ollama": {
-      "enabled": true,
-      "baseUrl": "http://localhost:11434"
-    }
+    "ollama": { "enabled": true, "baseUrl": "http://localhost:11434" }
   },
   "defaultModel": "qwen2.5:14b"
 }
 ```
+</details>
 
-**OpenAI:**
+<details>
+<summary>🔑 <strong>OpenAI</strong></summary>
 
 ```json
 {
   "providers": {
-    "openai": {
-      "enabled": true,
-      "apiKey": "sk-..."
-    }
+    "openai": { "enabled": true, "apiKey": "sk-..." }
   },
   "defaultModel": "gpt-4o"
 }
 ```
+</details>
 
-**OpenRouter (300+ models with one key):**
+<details>
+<summary>🌐 <strong>OpenRouter (300+ models, one key)</strong></summary>
 
 ```json
 {
   "providers": {
-    "openrouter": {
-      "enabled": true,
-      "apiKey": "sk-or-v1-..."
-    }
+    "openrouter": { "enabled": true, "apiKey": "sk-or-v1-..." }
   },
   "defaultModel": "anthropic/claude-sonnet-4"
 }
 ```
+</details>
 
-**Azure OpenAI:**
+<details>
+<summary>☁️ <strong>Azure OpenAI</strong></summary>
 
 ```json
 {
@@ -113,109 +168,79 @@ This creates a `codedrill.config.json` file in your workspace. Edit it to enable
   }
 }
 ```
+</details>
 
-See `codedrill.config.example.json` for the full template with all providers.
+> 📄 See `codedrill.config.example.json` for the full template with all 7 providers.
 
-> **Security:** Never commit `codedrill.config.json` to git. CodeDrill automatically adds it to `.gitignore`.
+> 🔒 **Security:** Never commit `codedrill.config.json` to git. CodeDrill adds it to `.gitignore` automatically.
 
-### Step 3: Start practicing
+### Step 2: Click Practice
 
-Click the **Practice** button in the sidebar toolbar. CodeDrill will:
-1. Pick a problem (new or due for review)
-2. Fetch its full description from LeetCode
-3. Scaffold a solution file (`{problem_name}.py`) and test file (`test_{problem_name}.py`) with 20+ test cases
-4. Open both in your editor
+CodeDrill picks a problem, fetches its description, scaffolds your solution and test files, and opens everything in your editor.
+
+### Step 3: Code, test, learn 🎉
+
+Set the timer → solve the problem → run tests → rate yourself → spaced repetition handles the rest.
 
 ---
 
-## How to Use
+## 🎮 How to Use
 
-### Practice Session Flow
+### Practice Flow
 
-1. **Start a session** -- Click **Practice**. A problem is selected and opened.
-2. **Set the timer** -- Use the `+15`, `+10`, `+5`, `+1` buttons to adjust, then click **Start**.
-3. **Code your solution** -- The Interviewer persona watches silently. If you're stuck, it nudges you with Socratic hints.
-4. **Run Tests** -- Click **Run Tests** to run pytest against 20+ test cases.
-5. **Give Up or finish** -- Click **Give Up** to switch to Teacher mode. The Teacher walks you through the solution step by step.
-6. **Rate yourself** -- Again / Hard / Good / Easy. FSRS schedules your next review.
+```
+🎯 Practice → ⏱️ Timer starts → 🔴 Interviewer mode (hints only)
+                                        ↓
+                               🏳️ Give Up / ⏰ Timer expires
+                                        ↓
+                               🟢 Teacher mode (structured explanation)
+                                        ↓
+                               ⭐ Rate: Again / Hard / Good / Easy
+                                        ↓
+                               📊 FSRS schedules next review
+                                        ↓
+                               🔄 3+ attempts → Problem mutates
+```
 
 ### Sidebar Buttons
 
-| Button | What it does |
-|--------|-------------|
-| **Practice** | Start a new practice session (random problem) |
-| **Problems** | Browse all 3,200+ problems with filters (difficulty, category, pattern, company) |
-| **History** | View and resume past chat sessions |
-| **Stats** | Dashboard with streaks, category progress, company coverage |
-| **Profile** | Paste your resume to generate personalized system design topics |
-| **View Problem** | Open the problem markdown in a split pane |
-| **Code Stub** | Create solution + test files for the current problem |
-| **Run Tests** | Execute pytest in a terminal |
-| **Regen Tests** | Re-generate 20+ test cases using AI |
-| **Give Up** | Stop timer, switch to Teacher mode |
+| Button | Action |
+|--------|--------|
+| 🎯 **Practice** | Start a session (random problem from spaced repetition queue) |
+| 📚 **Problems** | Browse 3,200+ problems with filters |
+| 💬 **History** | Resume past chat sessions |
+| 📊 **Stats** | Dashboard with streaks, mastery, and company coverage |
+| 👤 **Profile** | Submit resume for personalized system design topics |
+| 👁️ **View Problem** | Open problem markdown in a split pane |
+| 📝 **Code Stub** | Scaffold solution + test files for any problem |
+| ▶️ **Run Tests** | Execute pytest in a terminal |
+| 🔄 **Regen Tests** | Re-generate 20+ test cases using AI |
+| 🏳️ **Give Up** | Stop timer, switch to Teacher mode |
 
-### Browsing Problems
-
-Click **Problems** to browse without starting a session. You can:
-- Filter by difficulty, category, algorithm pattern, or company
-- Search by title
-- Click any problem to set it as active
-- Click **Code Stub** to scaffold files and start coding
-
-### System Design (Resume-Driven)
-
-1. Click **Profile** in the toolbar
-2. Paste your resume text and click **Analyze Resume**
-3. CodeDrill extracts your seniority, tech stack, and domains
-4. It generates 5-10 personalized system design topics
-5. Find them in the **Problems** tab under "System Design"
-6. Click **Practice** on any topic to start a timed session
-
-### AI Modes
-
-| Mode | When | Behavior |
-|------|------|----------|
-| **Interviewer** | Timer is running | Concise, Socratic hints only. Never gives solutions. Auto-nudges if you're stuck. |
-| **Teacher** | After Give Up or timer expires | Warm, structured explanations. Problem restatement, brute force, optimal approach, code walkthrough, complexity, related problems. |
-
-Modes switch automatically based on the timer. You can also switch manually.
-
----
-
-## Supported AI Providers
-
-| Provider | Setup | Cost |
-|----------|-------|------|
-| **Ollama** | Install locally, no key needed | Free |
-| **OpenRouter** | Single API key, 300+ models | Pay per token |
-| **OpenAI** | Direct API key | Pay per token |
-| **Azure OpenAI** | Endpoint + key + deployment | Pay per token |
-| **Anthropic** | Direct API key | Pay per token |
-| **Google AI** | Direct API key | Free tier + pay |
-| **Custom** | Any OpenAI-compatible endpoint | Varies |
-
----
-
-## Keyboard Shortcuts
+### ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd+Alt+P` / `Ctrl+Alt+P` | Start Practice Session |
-| `Cmd+Alt+D` / `Ctrl+Alt+D` | Open Dashboard |
+| `Cmd+Alt+P` / `Ctrl+Alt+P` | 🎯 Start Practice Session |
+| `Cmd+Alt+D` / `Ctrl+Alt+D` | 📊 Open Dashboard |
 
 ---
 
-## Problem Lists
+## 🤖 AI Providers
 
-- **Blind 75** -- 75 essential problems
-- **NeetCode 150** -- 150 problems with full category coverage
-- **Grind 75** -- Customizable problem set
-- **Company-tagged** -- 3,200+ problems from MAANG interview repos (660+ companies)
-- **System Design** -- 30+ bundled topics + resume-generated personalized topics
+| Provider | Setup | Cost |
+|----------|-------|------|
+| 🦙 **Ollama** | Install locally, no key needed | Free |
+| 🌐 **OpenRouter** | Single API key, 300+ models | Pay per token |
+| 🔑 **OpenAI** | Direct API key | Pay per token |
+| ☁️ **Azure OpenAI** | Endpoint + key + deployment | Pay per token |
+| 🧠 **Anthropic** | Direct API key | Pay per token |
+| 🔍 **Google AI** | Direct API key | Free tier available |
+| ⚙️ **Custom** | Any OpenAI-compatible endpoint | Varies |
 
 ---
 
-## Configuration Reference
+## ⚙️ Configuration
 
 All settings live in `codedrill.config.json` at the workspace root.
 
@@ -238,12 +263,12 @@ All settings live in `codedrill.config.json` at the workspace root.
 
 ---
 
-## Development
+## 🛠️ Development
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 18+
-- [VS Code](https://code.visualstudio.com/), [Cursor](https://cursor.com/), or [Windsurf](https://windsurf.com/) 1.96.0+
+- 📦 Node.js 18+
+- 🖥️ VS Code / Cursor / Windsurf 1.96.0+
 
 ### Setup
 
@@ -259,26 +284,28 @@ Press `F5` to launch the Extension Development Host.
 ### Build & Package
 
 ```bash
-npm run build          # Production build
-npm run package        # Create .vsix file
+npm run build          # 🏗️ Production build
+npm run package        # 📦 Create .vsix file
 ```
 
 ### Tech Stack
 
-- **Extension:** TypeScript, VS Code Extension API
-- **UI:** React 19, Webview API
-- **Database:** sql.js (SQLite via WASM)
-- **Scheduling:** ts-fsrs (FSRS spaced repetition)
-- **LLM:** openai SDK, ollama, @openrouter/sdk
-- **Markdown:** marked + DOMPurify + highlight.js
-- **Build:** esbuild
+| Layer | Technology |
+|-------|-----------|
+| 🧩 Extension | TypeScript, VS Code Extension API |
+| 🎨 UI | React 19, Webview API |
+| 💾 Database | sql.js (SQLite via WASM) |
+| 📊 Scheduling | ts-fsrs (FSRS spaced repetition) |
+| 🤖 LLM | openai SDK, ollama, @openrouter/sdk |
+| 📝 Markdown | marked + DOMPurify + highlight.js |
+| ⚡ Build | esbuild |
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please read the [CHANGELOG](CHANGELOG.md) and open an issue or PR.
 
-## License
+## 📄 License
 
-MIT -- see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
