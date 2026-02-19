@@ -740,8 +740,31 @@ function AppContent() {
           <div className="chat-container chat-container--empty">
             <div className="chat-welcome">
               <div className="chat-welcome-glyph">&#x25CE;</div>
-              <h3>Welcome to CodeDrill</h3>
-              <p>Click <strong>Practice</strong> to start a session, or just type a question below.</p>
+              {!modelsLoading && models.length === 0 ? (
+                <>
+                  <h3>Welcome to CodeDrill</h3>
+                  <p className="welcome-subtitle">AI-powered interview practice with spaced repetition</p>
+                  <div className="welcome-steps">
+                    <div className="welcome-step" onClick={handleConfigureModels} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && handleConfigureModels()}>
+                      <span className="welcome-step-num">1</span>
+                      <span>Configure an AI model <small>(Ollama, OpenAI, Azure, etc.)</small></span>
+                    </div>
+                    <div className="welcome-step">
+                      <span className="welcome-step-num">2</span>
+                      <span>Click <strong>Practice</strong> to start your first session</span>
+                    </div>
+                    <div className="welcome-step">
+                      <span className="welcome-step-num">3</span>
+                      <span>Browse <strong>3000+</strong> problems in the <strong>Problems</strong> tab</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3>Welcome to CodeDrill</h3>
+                  <p>Click <strong>Practice</strong> to start a session, or just type a question below.</p>
+                </>
+              )}
             </div>
           </div>
         ) : (

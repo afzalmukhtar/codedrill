@@ -54,6 +54,16 @@ export class Repository {
     try {
       const existing = await vscode.workspace.fs.readFile(this._dbUri);
       this._db = new SQL.Database(new Uint8Array(existing));
+      try {
+        this._db.exec("SELECT count(*) FROM sqlite_master");
+      } catch {
+        console.warn("[Repository] Database file is corrupted -- resetting");
+        this._db.close();
+        this._db = new SQL.Database();
+        vscode.window.showWarningMessage(
+          "CodeDrill: Your database was corrupted and has been reset. Problems will be reimported automatically.",
+        );
+      }
       console.log("[Repository] Loaded existing database");
     } catch {
       this._db = new SQL.Database();

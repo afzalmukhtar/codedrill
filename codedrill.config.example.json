@@ -1,6 +1,8 @@
 {
   "$schema": "./codedrill.config.schema.json",
 
+  "_WARNING": "DO NOT commit this file to version control -- it may contain API keys. CodeDrill automatically adds it to .gitignore.",
+
   "providers": {
     "ollama": {
       "enabled": true,

@@ -193,6 +193,7 @@ export class WorkspaceManager {
       "*.pyc",
       ".pytest_cache/",
       ".codedrill/",
+      "codedrill.config.json",
     ];
 
     let existing = "";

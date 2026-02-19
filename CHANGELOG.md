@@ -2,6 +2,46 @@
 
 All notable changes to the CodeDrill extension will be documented in this file.
 
+## [1.0.0] - 2026-02-19
+
+### Added
+
+- **Unified Problem Library**: 3,200+ problems aggregated from 8 GitHub repositories plus Blind 75, NeetCode 150, and Grind 75. Every problem tagged with category, algorithm pattern, and company data.
+- **Company-wise Filtering**: Filter problems by company (660+ companies), algorithm pattern (19 families), difficulty, and category in the Problem Browser.
+- **Resume-Driven System Design**: Paste your resume to auto-generate personalized system design topics calibrated to your experience. Promote topics to full practice sessions.
+- **Git Workspace Integration**: Optionally track practice progress in a git repo. Auto-scaffolds `solution.py`, `test_solution.py`, and `problem.md` per problem with auto-commit.
+- **Code Stub & Test Runner**: One-click code stub creation for any active problem. Run pytest directly from the sidebar.
+- **Welcome Onboarding**: Guided setup card for new users with step-by-step model configuration instructions.
+- **Dashboard Company Coverage**: Top-20 company progress visualization in the Stats dashboard.
+- **Chat Export**: Export any chat as Markdown via native Save As dialog with toast notification.
+- **Copy & Regenerate**: Copy any message to clipboard or regenerate the last AI response.
+- **Profile Panel**: Dedicated tab for resume submission, preferred language selection, and profile insights.
+- **Mermaid Diagram Support**: Problem markdown previews render Mermaid diagrams (trees, graphs, flowcharts).
+- **GitHub-style Markdown Preview**: Bundled CSS for VS Code's built-in markdown previewer.
+
+### Changed
+
+- **SVG Icon System**: Replaced all HTML entity icons with consistent, properly sized SVG icons across the entire UI.
+- **Debounced Interactions**: Send messages and search chat history with debouncing to prevent accidental duplicates.
+- **CSP Hardening**: Replaced `unsafe-inline` with nonce-based Content Security Policy for webview styles.
+
+### Fixed
+
+- **XSS Sanitization**: All markdown HTML is now sanitized with DOMPurify before rendering.
+- **Deactivation Cleanup**: Extension properly closes database, aborts streams, stops timer, and clears intervals on deactivation.
+- **DB Corruption Recovery**: Shows a user notification when the database is corrupted instead of silently resetting.
+- **Heartbeat Interval Leak**: Interviewer heartbeat interval is properly cleared on deactivation.
+- **API Key Safety**: Config file is auto-added to `.gitignore` with a warning not to commit API keys.
+- **HTML Entity Rendering**: Extended parser to correctly decode `&lfloor;`, `&rfloor;`, `&times;`, and 20+ other HTML entities in problem descriptions.
+- **Silent Failures**: Repository-not-ready errors now surface as chat messages instead of silently returning.
+- **New Chat State Reset**: Starting a new chat properly clears active problem, assessment, and exchange count.
+
+### Security
+
+- DOMPurify sanitization on all rendered markdown content
+- Nonce-based CSP (no more `unsafe-inline`)
+- API key gitignore protection with config file warning
+
 ## [0.1.0] - 2026-02-18
 
 ### Added

@@ -156,6 +156,15 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage(message);
   }
 
+  public dispose(): void {
+    this._stopHeartbeat();
+    if (this._abortController) {
+      this._abortController.abort();
+      this._abortController = null;
+    }
+    this._timer.stop();
+  }
+
   public async refreshModels(): Promise<void> {
     const config = await this._configManager.loadConfig();
     await this._router.initialize(config.providers);
@@ -1875,12 +1884,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-  <link href="${styleUri}" rel="stylesheet">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+  <link href="${styleUri}" rel="stylesheet" nonce="${nonce}">
   <title>CodeDrill</title>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root" data-nonce="${nonce}"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

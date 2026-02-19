@@ -251,6 +251,55 @@ body {
   max-width: 280px;
 }
 
+.welcome-subtitle {
+  font-size: 12px;
+}
+
+.welcome-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  text-align: left;
+  margin-top: 4px;
+}
+
+.welcome-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--codedrill-subtle);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.welcome-step:hover {
+  background: var(--codedrill-border);
+}
+
+.welcome-step small {
+  color: var(--codedrill-muted);
+  display: block;
+  font-size: 10px;
+}
+
+.welcome-step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--codedrill-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .chat-message {
   display: flex;
   flex-direction: column;

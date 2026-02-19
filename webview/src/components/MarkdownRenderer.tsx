@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo } from "react";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/core";
 import python from "highlight.js/lib/languages/python";
 import javascript from "highlight.js/lib/languages/javascript";
@@ -76,10 +77,13 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const html = useMemo(() => {
     try {
       const result = marked.parse(content);
-      if (typeof result === "string") return result;
-      return String(content);
+      const raw = typeof result === "string" ? result : String(content);
+      return DOMPurify.sanitize(raw, {
+        ADD_TAGS: ["code", "pre", "div", "span", "button"],
+        ADD_ATTR: ["class", "data-code", "title", "nonce"],
+      });
     } catch {
-      return escapeHtml(content);
+      return DOMPurify.sanitize(escapeHtml(content));
     }
   }, [content]);
 

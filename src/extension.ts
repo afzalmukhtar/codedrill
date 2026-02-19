@@ -19,6 +19,10 @@ let sessionCancellation: vscode.CancellationTokenSource | null = null;
 /** Prefetch pipeline instance for background description fetching. */
 let prefetchPipeline: PrefetchPipeline | null = null;
 
+/** Retained for cleanup during deactivation. */
+let sidebarRef: SidebarProvider | null = null;
+let repositoryRef: Repository | null = null;
+
 /** Called by the sidebar when the user clicks Cancel in the webview. */
 export function cancelSessionGeneration(): void {
   if (sessionCancellation) {
@@ -73,8 +77,15 @@ export function activate(context: vscode.ExtensionContext): void {
     repository,
   );
 
-  // Ensure repo is closed on deactivation
-  context.subscriptions.push({ dispose: () => repository.close() });
+  sidebarRef = sidebarProvider;
+  repositoryRef = repository;
+
+  context.subscriptions.push({
+    dispose: () => {
+      sidebarProvider.dispose();
+      repository.close();
+    },
+  });
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
@@ -582,8 +593,21 @@ async function downloadAllProblems(problemBank: ProblemBank): Promise<void> {
 /**
  * Called when the extension is deactivated.
  */
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
   prefetchPipeline?.stop();
   prefetchPipeline = null;
+
+  cancelSessionGeneration();
+
+  if (sidebarRef) {
+    sidebarRef.dispose();
+    sidebarRef = null;
+  }
+
+  if (repositoryRef) {
+    try { await repositoryRef.close(); } catch { /* best-effort */ }
+    repositoryRef = null;
+  }
+
   console.log("CodeDrill extension deactivated.");
 }
