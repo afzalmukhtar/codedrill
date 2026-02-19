@@ -436,12 +436,9 @@ async function getTodaysProblem(
         try {
           const practiceDir = await workspaceManager.ensureWorkspace();
           if (practiceDir) {
-            const stubCode = problem.codeStub
-              ?? "from typing import List, Optional\n\n\nclass Solution:\n    pass\n";
-
-            // Extract function name from stub for test assertions
-            const fnMatch = stubCode.match(/def\s+(\w+)\s*\(/);
-            const fnName = fnMatch?.[1] ?? "solve";
+            const { code: stubCode, functionName: fnName } = WorkspaceManager.buildCodeStub(
+              slug, problem.codeStub,
+            );
 
             // Generate LLM-powered test cases (20+)
             sendProgress("session", "Generating test cases...");

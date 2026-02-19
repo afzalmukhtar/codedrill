@@ -1551,9 +1551,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private _extractFunctionName(codeStub: string): string {
+  private _extractFunctionName(codeStub: string, slug?: string): string {
     const match = codeStub.match(/def\s+(\w+)\s*\(/);
-    return match?.[1] ?? "solve";
+    if (match) { return match[1]; }
+    if (slug) { return WorkspaceManager.slugToFunctionName(slug); }
+    return "solve";
   }
 
   private _buildTestFileContent(
@@ -1632,16 +1634,15 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
    * Resolve problem metadata for test generation: function name, examples, description.
    */
   private _getActiveTestMeta(): { codeStub: string; problemMd: string; fnName: string; examples: Array<{ input: string; output: string; explanation?: string }> } {
+    const slug = this._activeProblem?.slug ?? "solution";
     const problemId = (this._activeProblem as { problemId?: number })?.problemId;
-    let codeStub = "from typing import List, Optional\n\n\nclass Solution:\n    pass\n";
+    let rawStub: string | null = null;
     let problemMd = "";
     let examples: Array<{ input: string; output: string; explanation?: string }> = [];
 
     if (this._repository && problemId) {
       const problem = this._repository.getProblemById(problemId);
-      if (problem?.codeStub) {
-        codeStub = `from typing import List, Optional, Dict, Tuple, Set\n\n\n${problem.codeStub}\n`;
-      }
+      rawStub = problem?.codeStub ?? null;
       if (problem?.description) {
         problemMd = problem.description;
       }
@@ -1650,7 +1651,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       }
     }
 
-    const fnName = this._extractFunctionName(codeStub);
+    const { code: codeStub, functionName: fnName } = WorkspaceManager.buildCodeStub(slug, rawStub);
     return { codeStub, problemMd, fnName, examples };
   }
 

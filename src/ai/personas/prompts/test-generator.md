@@ -16,6 +16,8 @@ You are a test case generator for coding interview problems. Generate comprehens
 
 {{FUNCTION_SIGNATURE}}
 
+IMPORTANT: The `input` field in each test case must match the parameter order of the function above. For example, if the signature is `def twoSum(self, nums: List[int], target: int)`, then `input` should be `[2, 7, 11, 15], 9` (matching `nums`, `target` -- do NOT include `self`).
+
 ## Task
 
 Generate at least 20 test cases. Include the provided examples PLUS additional edge cases and stress tests. Cover ALL of the following categories:

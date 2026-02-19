@@ -57,16 +57,30 @@ export async function generateTestCases(
       if (chunk.type === "content" && chunk.content) {
         raw += chunk.content;
       } else if (chunk.type === "error") {
-        console.warn("[TestGenerator] LLM error:", chunk.error);
+        console.error("[TestGenerator] LLM error:", chunk.error);
+        vscode.window.showWarningMessage(`CodeDrill: Test generation LLM error: ${chunk.error}`);
         return [];
       }
     }
   } catch (err) {
-    console.warn("[TestGenerator] LLM call failed:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[TestGenerator] LLM call failed:", msg);
+    vscode.window.showWarningMessage(`CodeDrill: Test generation failed: ${msg}`);
     return [];
   }
 
-  return parseTestCaseJson(raw);
+  if (!raw.trim()) {
+    console.warn("[TestGenerator] LLM returned empty response");
+    vscode.window.showWarningMessage("CodeDrill: LLM returned empty response for test generation.");
+    return [];
+  }
+
+  const cases = parseTestCaseJson(raw);
+  if (cases.length === 0) {
+    console.warn("[TestGenerator] Could not parse LLM output. First 500 chars:", raw.slice(0, 500));
+    vscode.window.showWarningMessage("CodeDrill: LLM output could not be parsed as test cases. Check the model's JSON output capability.");
+  }
+  return cases;
 }
 
 /**
@@ -118,10 +132,10 @@ export function extractTestGenInput(
   codeStub?: string | null,
 ): TestGenInput {
   const constraintsMatch = problemMd.match(
-    /##\s*Constraints\s*\n([\s\S]*?)(?=\n##|\n---|\Z)/i,
+    /##\s*Constraints\s*\n([\s\S]*?)(?=\n##|\n---|$)/i,
   );
   const examplesMatch = problemMd.match(
-    /##\s*Examples?\s*\n([\s\S]*?)(?=\n##\s*Constraints|\n---|\Z)/i,
+    /##\s*Examples?\s*\n([\s\S]*?)(?=\n##\s*Constraints|\n---|$)/i,
   );
 
   return {

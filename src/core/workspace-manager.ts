@@ -39,6 +39,58 @@ export class WorkspaceManager {
     return mod || "solution";
   }
 
+  /**
+   * Convert a problem slug into a camelCase function name matching
+   * LeetCode's convention: "two-sum" → "twoSum", "3sum" → "threeSum".
+   */
+  static slugToFunctionName(slug: string): string {
+    const DIGIT_WORDS: Record<string, string> = {
+      "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
+      "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine",
+    };
+    const parts = slug.split("-").filter(Boolean);
+    const camel = parts.map((p, i) => {
+      let word = p.replace(/[^a-z0-9]/gi, "");
+      if (/^\d/.test(word)) {
+        word = word.replace(/^\d+/, (digits) =>
+          [...digits].map((d) => DIGIT_WORDS[d] ?? d).join(""),
+        );
+      }
+      if (i === 0) { return word.toLowerCase(); }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join("");
+    return camel || "solve";
+  }
+
+  /**
+   * Build a Python code stub with a deterministic function name.
+   * If a LeetCode codeStub exists, return it as-is (it already has the right name).
+   * Otherwise, generate a stub using the slug-derived function name.
+   */
+  static buildCodeStub(slug: string, existingStub: string | null): { code: string; functionName: string } {
+    if (existingStub) {
+      const fnMatch = existingStub.match(/def\s+(\w+)\s*\(self/);
+      if (fnMatch) {
+        return {
+          code: `from typing import List, Optional, Dict, Tuple, Set\n\n\n${existingStub}\n`,
+          functionName: fnMatch[1],
+        };
+      }
+    }
+
+    const fn = WorkspaceManager.slugToFunctionName(slug);
+    const code = [
+      "from typing import List, Optional, Dict, Tuple, Set",
+      "",
+      "",
+      "class Solution:",
+      `    def ${fn}(self):`,
+      "        pass",
+      "",
+    ].join("\n");
+    return { code, functionName: fn };
+  }
+
   async ensureWorkspace(): Promise<vscode.Uri | null> {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) { return null; }
