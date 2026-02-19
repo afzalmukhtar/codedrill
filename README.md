@@ -1,8 +1,8 @@
-![CodeDrill](media/icon.png)
-
-# ⚡ CodeDrill
-
-### Master DSA & System Design with Science-Backed Interview Practice
+<div align="center">
+  <img src="media/icon.png" alt="CodeDrill" width="120" />
+  <h1>⚡ CodeDrill</h1>
+  <p><strong>Master DSA & System Design with Science-Backed Interview Practice</strong></p>
+</div>
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/afzalmukhtar/codedrill/releases)
 [![Problems](https://img.shields.io/badge/problems-3200%2B-green)](https://github.com/afzalmukhtar/codedrill)
