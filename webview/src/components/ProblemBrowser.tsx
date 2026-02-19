@@ -49,6 +49,7 @@ export function ProblemBrowser({ onClose }: ProblemBrowserProps) {
   const [systemDesignTopics, setSystemDesignTopics] = useState<SystemDesignTopicSummary[]>([]);
   const [systemDesignCategories, setSystemDesignCategories] = useState<string[]>([]);
 
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedPattern, setSelectedPattern] = useState<string>("all");
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
@@ -62,6 +63,7 @@ export function ProblemBrowser({ onClose }: ProblemBrowserProps) {
       const msg = event.data;
       if (msg.type === "problemList") {
         setProblems(msg.problems as ProblemSummary[]);
+        setIsLoading(false);
       } else if (msg.type === "categoryList") {
         setCategories(msg.categories as string[]);
       } else if (msg.type === "patternList") {
@@ -314,7 +316,10 @@ export function ProblemBrowser({ onClose }: ProblemBrowserProps) {
                 ))}
               </div>
             ))}
-            {filtered.length === 0 && (
+            {isLoading && filtered.length === 0 && (
+              <div className="problem-browser-empty">Loading problems...</div>
+            )}
+            {!isLoading && filtered.length === 0 && (
               <div className="problem-browser-empty">No problems found</div>
             )}
           </div>

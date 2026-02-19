@@ -35,6 +35,7 @@ export class ProblemParser {
         : [],
       hints: raw.hints ?? [],
       solutionCode: null,
+      codeStub: this.extractCodeStub(raw.codeSnippets, "python3"),
       sourceList: sourceList ?? "",
       leetcodeId: raw.questionFrontendId ? parseInt(raw.questionFrontendId, 10) : null,
       pattern: raw.topicTags.length > 0 ? raw.topicTags[0].name : null,
@@ -150,6 +151,14 @@ export class ProblemParser {
     const match = pattern.exec(block);
     if (!match) { return ""; }
     return match[1].trim();
+  }
+
+  extractCodeStub(
+    codeSnippets: Array<{ lang: string; langSlug: string; code: string }>,
+    langSlug: string,
+  ): string | null {
+    const snippet = codeSnippets.find((s) => s.langSlug === langSlug);
+    return snippet?.code ?? null;
   }
 
   private _normalizeDifficulty(raw: string): "Easy" | "Medium" | "Hard" {

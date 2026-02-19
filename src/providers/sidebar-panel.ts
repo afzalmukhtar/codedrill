@@ -60,6 +60,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   /** Whether the user gave up on the current problem (switches to teacher). */
   private _gaveUp = false;
 
+  /** Tracks exchanges in current chat for profile update triggers. */
+  private _exchangeCount = 0;
+
   /** Student's self-assessment after giving up / finishing (e.g. "Again", "Hard"). */
   private _studentAssessment: string | null = null;
 
@@ -337,6 +340,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         case "viewProblem":
           this._onViewProblem();
+          break;
+
+        case "runTests":
+          this._onRunTests();
           break;
 
         case "giveUp":
@@ -617,6 +624,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this._conversationHistory = [];
     this._activeChatId = null;
     this._chatCreatedAt = null;
+    this._activeProblem = null;
+    this._gaveUp = false;
+    this._studentAssessment = null;
+    this._exchangeCount = 0;
+    this.postMessage({ type: "modeOverride", mode: "interview" });
   }
 
   private async _onListChats(): Promise<void> {
@@ -1174,7 +1186,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   // ================================================================
 
   private _onListProblems(category?: string): void {
-    if (!this._repository) { return; }
+    if (!this._repository) { this.postMessage({ type: "chatError", message: "Database not ready. Please reload the window." }); return; }
 
     const problems = this._repository.listProblems(category);
     this.postMessage({
@@ -1194,19 +1206,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private _onGetCategories(): void {
-    if (!this._repository) { return; }
+    if (!this._repository) { this.postMessage({ type: "chatError", message: "Database not ready. Please reload the window." }); return; }
     const categories = this._repository.getCategories();
     this.postMessage({ type: "categoryList", categories });
   }
 
   private _onGetCompanies(): void {
-    if (!this._repository) { return; }
+    if (!this._repository) { this.postMessage({ type: "chatError", message: "Database not ready. Please reload the window." }); return; }
     const companies = this._repository.getCompanies();
     this.postMessage({ type: "companyList", companies });
   }
 
   private _onGetPatterns(): void {
-    if (!this._repository) { return; }
+    if (!this._repository) { this.postMessage({ type: "chatError", message: "Database not ready. Please reload the window." }); return; }
     const patterns = this._repository.getPatterns();
     this.postMessage({ type: "patternList", patterns });
   }
@@ -1234,7 +1246,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async _onOpenSystemDesignTopic(topicId: number): Promise<void> {
-    if (!this._repository) { return; }
+    if (!this._repository) { this.postMessage({ type: "chatError", message: "Database not ready. Please reload the window." }); return; }
     const topic = this._repository.getSystemDesignTopicById(topicId);
     if (!topic) {
       this.postMessage({ type: "chatError", message: `System design topic #${topicId} not found.` });
@@ -1251,7 +1263,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     company?: string;
     difficulty?: string;
   }): void {
-    if (!this._repository) { return; }
+    if (!this._repository) { this.postMessage({ type: "chatError", message: "Database not ready. Please reload the window." }); return; }
     const problems = this._repository.listProblemsFiltered(filters);
     this.postMessage({
       type: "problemList",
@@ -1410,6 +1422,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         });
       },
     );
+  }
+
+  // ================================================================
+  // Run tests -- execute pytest in a terminal for the active problem
+  // ================================================================
+
+  private _onRunTests(): void {
+    if (!this._activeProblem?.slug) {
+      this.postMessage({ type: "chatError", message: "No active problem to test." });
+      return;
+    }
+    const slug = this._activeProblem.slug;
+    const testPath = `codedrill-practice/problems/${slug}/test_solution.py`;
+    const terminal = vscode.window.createTerminal({ name: `CodeDrill: ${slug}` });
+    terminal.show();
+    terminal.sendText(`python -m pytest "${testPath}" -v`);
   }
 
   // ================================================================
@@ -1636,7 +1664,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async _onPromoteSystemDesign(topicId: number): Promise<void> {
-    if (!this._repository) { return; }
+    if (!this._repository) { this.postMessage({ type: "chatError", message: "Database not ready. Please reload the window." }); return; }
 
     const topic = this._repository.getSystemDesignTopicById(topicId);
     if (!topic) {

@@ -10,6 +10,7 @@ import { LeetCodeClient } from "./leetcode/client";
 import { ProblemGeneratorPersona } from "./ai/personas/problem-generator";
 import { SessionManager } from "./core/session-manager";
 import { ProblemMutator } from "./core/problem-mutator";
+import { WorkspaceManager } from "./core/workspace-manager";
 import { clearTemplateCache } from "./ai/personas/prompt-loader";
 
 /** Module-level cancellation source for the session generation flow. */
@@ -44,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const problemBank = new ProblemBank(repository, leetcodeClient, context.extensionUri);
   const problemGenerator = new ProblemGeneratorPersona(context.extensionUri);
   const problemMutator = new ProblemMutator(context.extensionUri);
+  const workspaceManager = new WorkspaceManager(repository, workspaceUri ? vscode.Uri.joinPath(workspaceUri) : null);
 
   // Initialize repository in the background (don't block activation)
   const repoReady = repository.initialize(context.extensionUri, workspaceUri).then(async () => {
@@ -100,6 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
           sidebarProvider,
           sessionManager,
           repository,
+          workspaceManager,
         );
       });
     })
@@ -179,6 +182,7 @@ async function getTodaysProblem(
   sidebarProvider: SidebarProvider,
   sessionManager: SessionManager,
   repository: Repository,
+  workspaceManager: WorkspaceManager,
 ): Promise<void> {
   sessionCancellation = new vscode.CancellationTokenSource();
   const externalToken = sessionCancellation.token;
@@ -412,19 +416,49 @@ async function getTodaysProblem(
           new TextEncoder().encode(markdown),
         );
 
-        // 6. Create session
+        // 6. Scaffold workspace (git repo + solution.py + test file)
+        sendProgress("session", "Setting up workspace...");
+        progress.report({ message: "Setting up workspace..." });
+        try {
+          const practiceDir = await workspaceManager.ensureWorkspace();
+          if (practiceDir) {
+            const stubCode = problem.codeStub
+              ?? "from typing import List, Optional\n\n\nclass Solution:\n    pass\n";
+            const testCode = workspaceManager.buildTestFile(
+              slug,
+              "solve",
+              "Solution",
+              problem.examples.map((ex) => ({ input: ex.input, output: ex.output })),
+              [],
+            );
+            const { solutionUri } = await workspaceManager.scaffoldProblem(slug, markdown, stubCode, testCode);
+            await workspaceManager.commitProblem(slug);
+
+            const solDoc = await vscode.workspace.openTextDocument(solutionUri);
+            await vscode.window.showTextDocument(solDoc, {
+              viewColumn: vscode.ViewColumn.One,
+              preview: false,
+            });
+          }
+        } catch (wsErr) {
+          console.warn("[CodeDrill] Workspace scaffolding failed (non-fatal):", wsErr);
+        }
+
+        // 7. Create session
         sendProgress("session", "Setting up session...");
         progress.report({ message: "Setting up session..." });
         const session = await sessionManager.startSession(problem.id);
 
-        // 7. Open in editor
-        const doc = await vscode.workspace.openTextDocument(fileUri);
-        await vscode.window.showTextDocument(doc, {
-          viewColumn: vscode.ViewColumn.One,
-          preview: false,
-        });
+        // 8. Open problem markdown in editor (fallback if workspace didn't open solution.py)
+        try {
+          const doc = await vscode.workspace.openTextDocument(fileUri);
+          await vscode.window.showTextDocument(doc, {
+            viewColumn: vscode.ViewColumn.Two,
+            preview: true,
+          });
+        } catch { /* non-fatal -- solution.py is already open */ }
 
-        // 8. Notify sidebar and store active problem + start timer
+        // 9. Notify sidebar and store active problem + start timer
         const problemMeta = {
           slug: problem.slug,
           title: isMutation ? `[MUTATION] ${problem.title}` : problem.title,

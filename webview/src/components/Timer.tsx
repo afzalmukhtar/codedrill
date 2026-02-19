@@ -175,6 +175,7 @@ export function Timer({ timerDurationMs, mode }: TimerProps) {
               className="timer-ctrl timer-ctrl--start"
               onClick={handleStart}
               disabled={durationMs <= 0}
+              aria-label="Start timer"
             >
               Start
             </button>
@@ -183,6 +184,7 @@ export function Timer({ timerDurationMs, mode }: TimerProps) {
               className="timer-ctrl timer-ctrl--reset"
               onClick={handleReset}
               disabled={durationMs <= 0}
+              aria-label="Reset timer"
             >
               Reset
             </button>
@@ -191,13 +193,13 @@ export function Timer({ timerDurationMs, mode }: TimerProps) {
 
         {isRunning && !isPaused && !isExpired && (
           <>
-            <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={pause}>
+            <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={pause} aria-label="Pause timer">
               Pause
             </button>
-            <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={stop}>
+            <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={stop} aria-label="Stop timer">
               Stop
             </button>
-            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset}>
+            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset} aria-label="Reset timer">
               Reset
             </button>
           </>
@@ -205,20 +207,20 @@ export function Timer({ timerDurationMs, mode }: TimerProps) {
 
         {isRunning && isPaused && (
           <>
-            <button type="button" className="timer-ctrl timer-ctrl--start" onClick={resume}>
+            <button type="button" className="timer-ctrl timer-ctrl--start" onClick={resume} aria-label="Resume timer">
               Resume
             </button>
-            <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={stop}>
+            <button type="button" className="timer-ctrl timer-ctrl--stop" onClick={stop} aria-label="Stop timer">
               Stop
             </button>
-            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset}>
+            <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset} aria-label="Reset timer">
               Reset
             </button>
           </>
         )}
 
         {isExpired && !isPaused && (
-          <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset}>
+          <button type="button" className="timer-ctrl timer-ctrl--reset" onClick={handleReset} aria-label="Reset timer">
             Reset
           </button>
         )}

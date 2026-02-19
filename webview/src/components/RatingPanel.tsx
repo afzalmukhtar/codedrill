@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useVscode } from "../App";
 
 const RATINGS = [
@@ -13,16 +13,13 @@ interface RatingPanelProps {
   gaveUp?: boolean;
 }
 
-/**
- * Rating Panel
- *
- * Shown after a practice session ends (timer expires, user stops, or gives up).
- * Collects an FSRS rating (1-4) to update the spaced repetition card.
- */
 export function RatingPanel({ onRated, gaveUp }: RatingPanelProps) {
   const { postMessage } = useVscode();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRate = (rating: 1 | 2 | 3 | 4) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     postMessage({ type: "rateAttempt", rating, gaveUp: gaveUp ?? false });
     onRated();
   };
@@ -30,9 +27,11 @@ export function RatingPanel({ onRated, gaveUp }: RatingPanelProps) {
   return (
     <div className="rating-panel">
       <div className="rating-header">
-        {gaveUp
-          ? "No worries — rate how well you understood the problem:"
-          : "How did that go? Rate your attempt:"}
+        {isSubmitting
+          ? "Saving..."
+          : gaveUp
+            ? "No worries — rate how well you understood the problem:"
+            : "How did that go? Rate your attempt:"}
       </div>
       <div className="rating-buttons">
         {RATINGS.map((r) => (
@@ -41,6 +40,7 @@ export function RatingPanel({ onRated, gaveUp }: RatingPanelProps) {
             type="button"
             className={`rating-btn rating-btn--${r.value}`}
             onClick={() => handleRate(r.value)}
+            disabled={isSubmitting}
             title={r.desc}
             aria-label={`Rate ${r.label}: ${r.desc}`}
           >

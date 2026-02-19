@@ -97,6 +97,17 @@ export class Repository {
         console.warn("[Repository] Migration companies column failed (may already exist):", e);
       }
     }
+    // Add codeStub column if missing
+    try {
+      this._db.exec("SELECT code_stub FROM problems LIMIT 1");
+    } catch {
+      try {
+        this._db.run("ALTER TABLE problems ADD COLUMN code_stub TEXT");
+        console.log("[Repository] Migration: added code_stub column to problems");
+      } catch (e) {
+        console.warn("[Repository] Migration code_stub column failed (may already exist):", e);
+      }
+    }
     // Add difficulty/relevance columns to system_design_topics if missing
     try {
       this._db.exec("SELECT difficulty FROM system_design_topics LIMIT 1");
@@ -131,8 +142,9 @@ export class Repository {
     await vscode.workspace.fs.writeFile(this._dbUri, data);
   }
 
-  close(): void {
+  async close(): Promise<void> {
     if (this._db) {
+      try { await this.persist(); } catch (e) { console.warn("[Repository] Failed to persist on close:", e); }
       this._db.close();
       this._db = null;
     }
@@ -177,6 +189,7 @@ export class Repository {
     if (fields.testCases !== undefined) { sets.push("test_cases = ?"); vals.push(JSON.stringify(fields.testCases)); }
     if (fields.hints !== undefined) { sets.push("hints = ?"); vals.push(JSON.stringify(fields.hints)); }
     if (fields.solutionCode !== undefined) { sets.push("solution_code = ?"); vals.push(fields.solutionCode); }
+    if (fields.codeStub !== undefined) { sets.push("code_stub = ?"); vals.push(fields.codeStub); }
     if (fields.tags !== undefined) { sets.push("tags = ?"); vals.push(JSON.stringify(fields.tags)); }
     if (fields.leetcodeId !== undefined) { sets.push("leetcode_id = ?"); vals.push(fields.leetcodeId); }
     if (fields.pattern !== undefined) { sets.push("pattern = ?"); vals.push(fields.pattern); }
@@ -298,6 +311,7 @@ export class Repository {
       testCases: JSON.parse((obj.test_cases as string) || "[]"),
       hints: JSON.parse((obj.hints as string) || "[]"),
       solutionCode: (obj.solution_code as string) || null,
+      codeStub: (obj.code_stub as string) || null,
       sourceList: (obj.source_list as string) || "",
       leetcodeId: (obj.leetcode_id as number) || null,
       pattern: (obj.pattern as string) || null,
@@ -479,6 +493,11 @@ export class Repository {
     const rows = this.db.exec(
       "SELECT COUNT(DISTINCT problem_id) FROM attempts WHERE rating IS NOT NULL AND rating >= 2",
     );
+    return (rows[0]?.values[0]?.[0] as number) ?? 0;
+  }
+
+  getTotalAttempted(): number {
+    const rows = this.db.exec("SELECT COUNT(DISTINCT problem_id) FROM attempts");
     return (rows[0]?.values[0]?.[0] as number) ?? 0;
   }
 

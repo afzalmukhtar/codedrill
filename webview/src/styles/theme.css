@@ -911,6 +911,45 @@ body {
   color: #60a5fa;
 }
 
+/* ── Message action buttons (copy, regenerate) ── */
+
+.chat-message-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.chat-message:hover .chat-message-actions {
+  opacity: 1;
+}
+
+.chat-message-copy,
+.chat-message-regenerate {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--codedrill-subtle);
+  background: transparent;
+  color: var(--codedrill-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.chat-message-copy:hover {
+  color: var(--codedrill-accent);
+  border-color: var(--codedrill-accent);
+  background: color-mix(in srgb, var(--codedrill-accent) 10%, transparent);
+}
+
+.chat-message-regenerate:hover {
+  color: #f59e0b;
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
 /* ── Interrupted label ── */
 .chat-interrupted-label {
   display: block;
@@ -1213,6 +1252,31 @@ body {
   background: color-mix(in srgb, var(--codedrill-accent) 12%, transparent);
 }
 
+.run-tests-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #22c55e;
+  background: transparent;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.run-tests-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.run-tests-btn:hover {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: #22c55e;
+}
+
 .give-up-btn {
   display: inline-flex;
   align-items: center;
@@ -1315,29 +1379,6 @@ body {
 /* ============================================================
    Session Start Button
    ============================================================ */
-
-.session-start-btn {
-  margin-top: 12px;
-  padding: 10px 24px;
-  border: 1px solid var(--codedrill-accent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--codedrill-accent) 15%, transparent);
-  color: var(--codedrill-accent);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.session-start-btn:hover {
-  background: color-mix(in srgb, var(--codedrill-accent) 25%, transparent);
-  border-color: var(--codedrill-accent);
-}
-
-.session-start-btn:active {
-  background: color-mix(in srgb, var(--codedrill-accent) 35%, transparent);
-}
 
 /* ============================================================
    Session Loader
@@ -2258,7 +2299,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--codedrill-text);
+  color: var(--codedrill-fg);
 }
 
 .profile-panel-close {
@@ -2302,7 +2343,7 @@ body {
   width: 100%;
   resize: vertical;
   background: var(--codedrill-input-bg, var(--vscode-input-background));
-  color: var(--codedrill-text);
+  color: var(--codedrill-fg);
   border: 1px solid var(--codedrill-border);
   border-radius: 6px;
   padding: 8px 10px;
@@ -2391,7 +2432,7 @@ body {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  background: var(--codedrill-surface);
+  background: var(--codedrill-subtle);
   border-radius: 8px;
   border: 1px solid var(--codedrill-border);
 }
@@ -2417,7 +2458,7 @@ body {
 }
 
 .profile-panel-row-value {
-  color: var(--codedrill-text);
+  color: var(--codedrill-fg);
   font-weight: 500;
 }
 
@@ -2461,6 +2502,28 @@ body {
 .profile-panel-chip--domain {
   background: rgba(168, 85, 247, 0.12);
   color: #a855f7;
+}
+
+.profile-panel-select {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--codedrill-border);
+  border-radius: 6px;
+  background: var(--codedrill-input-bg, var(--vscode-input-background));
+  color: var(--codedrill-fg);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.profile-panel-select:focus {
+  border-color: var(--codedrill-accent);
+}
+
+.profile-panel-select option:disabled {
+  color: var(--codedrill-muted);
 }
 
 /* ── Export Toast ── */

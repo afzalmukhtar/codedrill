@@ -88,6 +88,24 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
         </button>
       </div>
 
+      <div className="profile-panel-section">
+        <label className="profile-panel-label" htmlFor="lang-select">
+          Preferred language
+        </label>
+        <select
+          id="lang-select"
+          className="profile-panel-select"
+          defaultValue="python3"
+          aria-label="Select preferred programming language"
+        >
+          <option value="python3">Python 3</option>
+          <option value="javascript" disabled>JavaScript (coming soon)</option>
+          <option value="java" disabled>Java (coming soon)</option>
+          <option value="cpp" disabled>C++ (coming soon)</option>
+          <option value="go" disabled>Go (coming soon)</option>
+        </select>
+      </div>
+
       {isProcessing && (
         <div className="profile-panel-progress">
           <div className="profile-panel-progress-bar">

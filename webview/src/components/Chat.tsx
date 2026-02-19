@@ -1,17 +1,41 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { ChatMessage } from "../App";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface ChatProps {
   messages: ChatMessage[];
   isLoading: boolean;
+  onRegenerate?: () => void;
 }
 
 function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function Chat({ messages, isLoading }: ChatProps) {
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  }, [text]);
+
+  return (
+    <button
+      type="button"
+      className="chat-message-copy"
+      onClick={handleCopy}
+      title="Copy message"
+      aria-label="Copy message to clipboard"
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+export function Chat({ messages, isLoading, onRegenerate }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,6 +54,13 @@ export function Chat({ messages, isLoading }: ChatProps) {
     );
   }
 
+  const lastAssistantIdx = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant" && !messages[i].isStreaming) return i;
+    }
+    return -1;
+  })();
+
   return (
     <div className="chat-container" role="log" aria-live="polite" aria-busy={isLoading}>
       {messages.map((message, index) => (
@@ -47,6 +78,22 @@ export function Chat({ messages, isLoading }: ChatProps) {
               <span className="chat-interrupted-label">Generation stopped</span>
             )}
           </div>
+          {!message.isStreaming && (
+            <div className="chat-message-actions">
+              <CopyButton text={message.content} />
+              {index === lastAssistantIdx && message.role === "assistant" && !isLoading && onRegenerate && (
+                <button
+                  type="button"
+                  className="chat-message-regenerate"
+                  onClick={onRegenerate}
+                  title="Regenerate response"
+                  aria-label="Regenerate response"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
         </article>
       ))}
 

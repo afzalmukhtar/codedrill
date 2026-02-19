@@ -7,7 +7,7 @@ import { SessionLoader, type SessionProgress } from "./components/SessionLoader"
 import { ProblemBrowser } from "./components/ProblemBrowser";
 import { Dashboard } from "./components/Dashboard";
 import { ProfilePanel } from "./components/ProfilePanel";
-import { IconNewChat, IconTrash, IconDownload, IconClose, IconEye, IconFlag } from "./components/Icons";
+import { IconNewChat, IconTrash, IconDownload, IconClose, IconEye, IconFlag, IconPlay } from "./components/Icons";
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -169,6 +169,8 @@ function AppContent() {
   const streamBufferRef = useRef<string>("");
   const sessionStreamRef = useRef<string>("");
   const activeProblemRef = useRef(activeProblem);
+  const sendCooldownRef = useRef(false);
+  const historySearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep ref in sync with state (for use in event handler closures)
   useEffect(() => { activeProblemRef.current = activeProblem; }, [activeProblem]);
@@ -416,6 +418,9 @@ function AppContent() {
 
   const sendMessage = useCallback((text: string) => {
     if (!text.trim()) return;
+    if (sendCooldownRef.current) return;
+    sendCooldownRef.current = true;
+    setTimeout(() => { sendCooldownRef.current = false; }, 200);
 
     setMessages((prev) => [
       ...prev,
@@ -465,11 +470,14 @@ function AppContent() {
 
   const handleHistorySearch = useCallback((query: string) => {
     setHistorySearch(query);
-    if (query.trim()) {
-      vscodeApi.postMessage({ type: "searchChats", query });
-    } else {
-      vscodeApi.postMessage({ type: "listChats" });
-    }
+    if (historySearchTimerRef.current) clearTimeout(historySearchTimerRef.current);
+    historySearchTimerRef.current = setTimeout(() => {
+      if (query.trim()) {
+        vscodeApi.postMessage({ type: "searchChats", query });
+      } else {
+        vscodeApi.postMessage({ type: "listChats" });
+      }
+    }, 300);
   }, []);
 
   const handleExportChat = useCallback((chatId: string, format: "markdown" | "json") => {
@@ -481,6 +489,8 @@ function AppContent() {
   }, []);
 
   const handleDeleteChat = useCallback((chatId: string) => {
+    const ok = window.confirm("Delete this chat? This cannot be undone.");
+    if (!ok) return;
     vscodeApi.postMessage({ type: "deleteChat", chatId });
     setChatHistory((prev) => prev.filter((c) => c.id !== chatId));
     if (activeChatId === chatId) {
@@ -506,6 +516,22 @@ function AppContent() {
     sessionStreamRef.current = "";
   }, []);
 
+  const handleRegenerate = useCallback(() => {
+    setMessages((prev) => {
+      const lastUserIdx = prev.map((m) => m.role).lastIndexOf("user");
+      if (lastUserIdx < 0) return prev;
+      const lastUserMsg = prev[lastUserIdx].content;
+      const withoutLastAssistant = prev.slice(0, -1).filter((_, i) => {
+        if (i > lastUserIdx && prev[i].role === "assistant") return false;
+        return true;
+      });
+      streamBufferRef.current = "";
+      setIsLoading(true);
+      vscodeApi.postMessage({ type: "sendMessage", text: lastUserMsg });
+      return withoutLastAssistant;
+    });
+  }, []);
+
   const handleGiveUp = useCallback(() => {
     setGaveUp(true);
     setShowRating(true);
@@ -521,6 +547,7 @@ function AppContent() {
             type="button"
             className="sidebar-action"
             title="New chat"
+            aria-label="New chat"
             onClick={handleNewChat}
           >
             <IconNewChat size={16} />
@@ -533,6 +560,7 @@ function AppContent() {
             className="toolbar-btn toolbar-btn--primary"
             onClick={handleStartSession}
             disabled={sessionLoading}
+            aria-label="Start practice session"
           >
             Practice
           </button>
@@ -540,6 +568,7 @@ function AppContent() {
             type="button"
             className={`toolbar-btn${showProblems ? " toolbar-btn--active" : ""}`}
             onClick={() => { setShowProblems((p) => !p); setShowHistory(false); setShowDashboard(false); setShowProfile(false); }}
+            aria-label="Browse problems"
           >
             Problems
           </button>
@@ -547,6 +576,7 @@ function AppContent() {
             type="button"
             className={`toolbar-btn${showHistory ? " toolbar-btn--active" : ""}`}
             onClick={handleShowHistory}
+            aria-label="Chat history"
           >
             History
           </button>
@@ -554,6 +584,7 @@ function AppContent() {
             type="button"
             className={`toolbar-btn${showDashboard ? " toolbar-btn--active" : ""}`}
             onClick={() => { setShowDashboard((p) => !p); setShowHistory(false); setShowProblems(false); setShowProfile(false); }}
+            aria-label="Dashboard statistics"
           >
             Stats
           </button>
@@ -561,6 +592,7 @@ function AppContent() {
             type="button"
             className={`toolbar-btn${showProfile ? " toolbar-btn--active" : ""}`}
             onClick={() => { setShowProfile((p) => !p); setShowHistory(false); setShowProblems(false); setShowDashboard(false); }}
+            aria-label="User profile"
           >
             Profile
           </button>
@@ -584,13 +616,23 @@ function AppContent() {
               type="button"
               className="view-problem-btn"
               onClick={() => vscodeApi.postMessage({ type: "viewProblem" })}
+              aria-label="View problem statement"
             >
               <IconEye size={14} /> View Problem
             </button>
             <button
               type="button"
+              className="run-tests-btn"
+              onClick={() => vscodeApi.postMessage({ type: "runTests" })}
+              aria-label="Run tests"
+            >
+              <IconPlay size={14} /> Run Tests
+            </button>
+            <button
+              type="button"
               className="give-up-btn"
               onClick={handleGiveUp}
+              aria-label="Give up and switch to teacher mode"
             >
               <IconFlag size={14} /> Give Up
             </button>
@@ -695,7 +737,7 @@ function AppContent() {
             </div>
           </div>
         ) : (
-          <Chat messages={messages} isLoading={isLoading} />
+          <Chat messages={messages} isLoading={isLoading} onRegenerate={handleRegenerate} />
         )}
 
         <ChatInput

@@ -191,6 +191,7 @@ export class ProblemBank {
           testCases: [],
           hints: [],
           solutionCode: null,
+          codeStub: null,
           sourceList: entry.sources?.join(",") || listName,
           leetcodeId: entry.leetcodeId ?? null,
           pattern: entry.pattern || entry.category,

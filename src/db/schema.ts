@@ -19,6 +19,7 @@ export interface Problem {
   testCases: TestCase[];
   hints: string[];
   solutionCode: string | null;
+  codeStub: string | null;
   sourceList: string;
   leetcodeId: number | null;
   pattern: string | null;
