@@ -228,14 +228,14 @@ body {
 }
 
 .chat-welcome-glyph {
-  width: 26px;
-  height: 26px;
+  width: 56px;
+  height: 56px;
   display: grid;
   place-items: center;
   border-radius: 999px;
-  border: 1px solid var(--codedrill-subtle);
+  border: 2px solid var(--codedrill-subtle);
   color: var(--codedrill-muted);
-  font-size: 13px;
+  font-size: 28px;
 }
 
 .chat-welcome h3 {
@@ -1250,6 +1250,31 @@ body {
 
 .view-problem-btn:hover {
   background: color-mix(in srgb, var(--codedrill-accent) 12%, transparent);
+}
+
+.code-stub-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a78bfa;
+  background: transparent;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.code-stub-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.code-stub-btn:hover {
+  background: rgba(167, 139, 250, 0.1);
+  border-color: #a78bfa;
 }
 
 .run-tests-btn {

@@ -103,6 +103,24 @@ export class ProblemParser {
     md = md.replace(/&nbsp;/g, " ");
     md = md.replace(/&le;/g, "<=");
     md = md.replace(/&ge;/g, ">=");
+    md = md.replace(/&lfloor;/g, "⌊");
+    md = md.replace(/&rfloor;/g, "⌋");
+    md = md.replace(/&lceil;/g, "⌈");
+    md = md.replace(/&rceil;/g, "⌉");
+    md = md.replace(/&times;/g, "×");
+    md = md.replace(/&divide;/g, "÷");
+    md = md.replace(/&minus;/g, "−");
+    md = md.replace(/&plusmn;/g, "±");
+    md = md.replace(/&infin;/g, "∞");
+    md = md.replace(/&ne;/g, "≠");
+    md = md.replace(/&rarr;/g, "→");
+    md = md.replace(/&larr;/g, "←");
+    md = md.replace(/&darr;/g, "↓");
+    md = md.replace(/&uarr;/g, "↑");
+    md = md.replace(/&hellip;/g, "…");
+    md = md.replace(/&mdash;/g, "—");
+    md = md.replace(/&ndash;/g, "–");
+    md = md.replace(/&#(\d+);/g, (_m, code) => String.fromCharCode(parseInt(code, 10)));
 
     // Clean up whitespace
     md = md.replace(/\n{3,}/g, "\n\n");

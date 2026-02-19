@@ -346,6 +346,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this._onRunTests();
           break;
 
+        case "createCodeStub":
+          await this._onCreateCodeStub();
+          break;
+
         case "giveUp":
           this._onGiveUp();
           break;
@@ -1438,6 +1442,95 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const terminal = vscode.window.createTerminal({ name: `CodeDrill: ${slug}` });
     terminal.show();
     terminal.sendText(`python -m pytest "${testPath}" -v`);
+  }
+
+  // ================================================================
+  // Create code stub -- scaffold solution.py + test file for active problem
+  // ================================================================
+
+  private async _onCreateCodeStub(): Promise<void> {
+    if (!this._activeProblem?.slug) {
+      vscode.window.showWarningMessage("CodeDrill: No active problem. Open a problem from the Problems tab first.");
+      return;
+    }
+
+    const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    if (!workspaceUri) {
+      vscode.window.showWarningMessage("CodeDrill: No workspace folder open.");
+      return;
+    }
+
+    const slug = this._activeProblem.slug;
+    const problemId = (this._activeProblem as { problemId?: number }).problemId;
+
+    let codeStub = "from typing import List, Optional\n\n\nclass Solution:\n    pass\n";
+    let problemMd = "";
+
+    if (this._repository && problemId) {
+      const problem = this._repository.getProblemById(problemId);
+      if (problem?.codeStub) {
+        codeStub = `from typing import List, Optional, Dict, Tuple, Set\n\n\n${problem.codeStub}\n`;
+      }
+      if (problem?.description) {
+        problemMd = problem.description;
+      }
+    }
+
+    try {
+      const baseDir = vscode.Uri.joinPath(workspaceUri, "codedrill-practice");
+      try { await vscode.workspace.fs.stat(baseDir); } catch { await vscode.workspace.fs.createDirectory(baseDir); }
+      const problemsDir = vscode.Uri.joinPath(baseDir, "problems");
+      try { await vscode.workspace.fs.stat(problemsDir); } catch { await vscode.workspace.fs.createDirectory(problemsDir); }
+      const practiceDir = vscode.Uri.joinPath(problemsDir, slug);
+      try { await vscode.workspace.fs.stat(practiceDir); } catch { await vscode.workspace.fs.createDirectory(practiceDir); }
+
+      const solutionUri = vscode.Uri.joinPath(practiceDir, "solution.py");
+      const testUri = vscode.Uri.joinPath(practiceDir, "test_solution.py");
+      const problemUri = vscode.Uri.joinPath(practiceDir, "problem.md");
+
+      let alreadyExists = false;
+      try { await vscode.workspace.fs.stat(solutionUri); alreadyExists = true; } catch { /* new */ }
+
+      if (alreadyExists) {
+        const doc = await vscode.workspace.openTextDocument(solutionUri);
+        await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
+        vscode.window.showInformationMessage(`CodeDrill: Opened existing solution for ${slug}`);
+        return;
+      }
+
+      await vscode.workspace.fs.writeFile(solutionUri, Buffer.from(codeStub, "utf-8"));
+
+      const basicTest = [
+        "import pytest",
+        "import sys",
+        "import os",
+        "",
+        "sys.path.insert(0, os.path.dirname(__file__))",
+        "from solution import Solution",
+        "",
+        "",
+        "class TestSolution:",
+        "    def setup_method(self):",
+        "        self.sol = Solution()",
+        "",
+        "    def test_placeholder(self):",
+        '        """Replace with actual test cases"""',
+        "        assert True",
+        "",
+      ].join("\n");
+      await vscode.workspace.fs.writeFile(testUri, Buffer.from(basicTest, "utf-8"));
+
+      if (problemMd) {
+        await vscode.workspace.fs.writeFile(problemUri, Buffer.from(problemMd, "utf-8"));
+      }
+
+      const doc = await vscode.workspace.openTextDocument(solutionUri);
+      await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
+      vscode.window.showInformationMessage(`CodeDrill: Created solution.py for ${slug}`);
+    } catch (err) {
+      console.error("[CodeDrill] createCodeStub failed:", err);
+      vscode.window.showErrorMessage(`CodeDrill: Failed to create code stub: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // ================================================================

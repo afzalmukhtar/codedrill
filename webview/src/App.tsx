@@ -7,7 +7,7 @@ import { SessionLoader, type SessionProgress } from "./components/SessionLoader"
 import { ProblemBrowser } from "./components/ProblemBrowser";
 import { Dashboard } from "./components/Dashboard";
 import { ProfilePanel } from "./components/ProfilePanel";
-import { IconNewChat, IconTrash, IconDownload, IconClose, IconEye, IconFlag, IconPlay } from "./components/Icons";
+import { IconNewChat, IconTrash, IconDownload, IconClose, IconEye, IconFlag, IconPlay, IconCode } from "./components/Icons";
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -619,6 +619,14 @@ function AppContent() {
               aria-label="View problem statement"
             >
               <IconEye size={14} /> View Problem
+            </button>
+            <button
+              type="button"
+              className="code-stub-btn"
+              onClick={() => vscodeApi.postMessage({ type: "createCodeStub" })}
+              aria-label="Create code stub and test file"
+            >
+              <IconCode size={14} /> Code Stub
             </button>
             <button
               type="button"
